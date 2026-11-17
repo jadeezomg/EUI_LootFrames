@@ -905,7 +905,7 @@ local function LayoutRow(row, m, top)
         return table.concat(out)
     end
 
-    local ABBREV = { 10, 7, 5, 3, 1 }
+    local ABBREV = { 10, 7, 5, 3, 2 }
 
     -- Every player gets a chain of forms, most useful first: full name, name
     -- without realm, shortened names, then the class icon. Rolls stay in

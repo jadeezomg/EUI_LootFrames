@@ -217,7 +217,8 @@ Pass group never shows rolls, because a pass cannot win.
 Reduce crowded player lines per player, not with one global mode. The order is
 full name, realm dropped, first name abbreviated, class icon. Cut realms one
 at a time, largest saving first, then abbreviate the longest names, then use
-icons. Keep the roll number in every named form. Do not drop rolls before the
+icons. Two characters is the shortest abbreviation; use the class icon after
+that. Keep the roll number in every named form. Do not drop rolls before the
 icon step.
 
 Once every player has picked, the decision line becomes the winner line. The
