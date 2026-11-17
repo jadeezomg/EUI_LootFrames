@@ -14,9 +14,6 @@ local function BuildPage(pageName, parent, yOffset)
     local y = yOffset
     local _, h
 
-    local function Blank()
-        return EUI.BlankRowCfg and EUI.BlankRowCfg() or { type = "label", text = "" }
-    end
     local function On()
         return ns.Cfg().enabled
     end
@@ -77,21 +74,18 @@ local function BuildPage(pageName, parent, yOffset)
           disabled = function() return not On() end, disabledTooltip = "Enable Loot Roll Window",
           getValue = function() return ns.Cfg().playerStyle end,
           setValue = function(v) ns.Cfg().playerStyle = v; ns.Refresh() end },
-        { type = "dropdown", text = "Player Align", values = { left = "Left", right = "Right" },
-          order = { "left", "right" },
-          tooltip = "Aligns players to the left or right edge. Right runs chips and class icons from right to left, so the first player sits at the right edge.",
-          disabled = function() return not On() end, disabledTooltip = "Enable Loot Roll Window",
-          getValue = function() return ns.Cfg().align end,
-          setValue = function(v) ns.Cfg().align = v; ns.Refresh() end }
+        Toggle("showRolls", "Show Roll Numbers",
+            "Shows each player's roll next to their name.",
+            function() return not On() end, "Enable Loot Roll Window")
     ); y = y - h
 
     _, h = W:DualRow(parent, y,
-        Toggle("showRolls", "Show Roll Numbers",
-            "Shows each player's roll next to their name.",
-            function() return not On() end, "Enable Loot Roll Window"),
         Toggle("sound", "Roll Start Sound",
             "Plays a sound when a new roll starts.",
-            function() return not On() end, "Enable Loot Roll Window")
+            function() return not On() end, "Enable Loot Roll Window"),
+        { type = "labeledButton", text = "Preview", buttonText = "Show Samples",
+          tooltip = "Shows the window with sample rolls, so the colors, size and position can be checked.",
+          onClick = function() ns.Preview() end }
     ); y = y - h
 
     local function ColorCfg(key, text, tooltip, disabled, disabledTip)
@@ -209,13 +203,6 @@ local function BuildPage(pageName, parent, yOffset)
     _, h = W:DualRow(parent, y,
         ColorCfg("chipBorder", "Chip Border Color", "Border colour of a player chip; the alpha is its opacity."),
         SizeCfg("Chip Border Size", "chipBorderSize", "chipBorderTexture", "chipBorderSizePx")
-    ); y = y - h
-
-    _, h = W:DualRow(parent, y,
-        { type = "labeledButton", text = "Preview", buttonText = "Show Samples",
-          tooltip = "Shows the window with sample rolls, so the colors, size and position can be checked.",
-          onClick = function() ns.Preview() end },
-        EUI.BlankRowCfg()
     ); y = y - h
 
     _, h = W:Spacer(parent, y, 20); y = y - h
@@ -344,6 +331,44 @@ local function BuildPage(pageName, parent, yOffset)
     _, h = W:Spacer(parent, y, 20); y = y - h
 
     ---------------------------------------------------------------------------
+    --  ROLL BUTTONS
+    ---------------------------------------------------------------------------
+    _, h = W:SectionHeader(parent, "ROLL BUTTONS", y); y = y - h
+
+    _, h = W:DualRow(parent, y,
+        { type = "dropdown", text = "Button Style", values = { icons = "Icons", labels = "Labels" },
+          order = { "icons", "labels" },
+          tooltip = "Draw each roll button as its Need, Greed or Pass icon, or as a text label.",
+          disabled = function() return not On() end, disabledTooltip = "Enable Loot Roll Window",
+          getValue = function() return ns.Cfg().buttonStyle end,
+          setValue = function(v) ns.Cfg().buttonStyle = v; ns.Refresh() end },
+        Slider("iconSize", "Icon Size", 10, 18, 1,
+            "Size of the roll icons, including the class icons in a crowded row.",
+            function() return not On() end, "Enable Loot Roll Window")
+    ); y = y - h
+
+    _, h = W:DualRow(parent, y,
+        { type = "dropdown", text = "Button Background", values = { badge = "Badge", row = "Full Row" },
+          order = { "badge", "row" },
+          tooltip = "Badge keeps the background behind the roll button. Full Row extends it across the whole row.",
+          disabled = function() return not On() end, disabledTooltip = "Enable Loot Roll Window",
+          getValue = function() return ns.Cfg().buttonBgSpan end,
+          setValue = function(v) ns.Cfg().buttonBgSpan = v; ns.Refresh() end },
+        Slider("buttonBgA", "Background Opacity", 0, 1, 0.01,
+            "Opacity of the background behind an open roll button.",
+            function() return not On() end, "Enable Loot Roll Window")
+    ); y = y - h
+
+    _, h = W:DualRow(parent, y,
+        Slider("buttonHoverA", "Hover Opacity", 0, 1, 0.01,
+            "Opacity of the background while the mouse is over a roll button.",
+            function() return not On() end, "Enable Loot Roll Window"),
+        EUI.BlankRowCfg()
+    ); y = y - h
+
+    _, h = W:Spacer(parent, y, 20); y = y - h
+
+    ---------------------------------------------------------------------------
     --  ITEM ROW
     ---------------------------------------------------------------------------
     _, h = W:SectionHeader(parent, "ITEM ROW", y); y = y - h
@@ -419,23 +444,55 @@ local function BuildPage(pageName, parent, yOffset)
     _, h = W:Spacer(parent, y, 20); y = y - h
 
     ---------------------------------------------------------------------------
+    --  FLASH
+    ---------------------------------------------------------------------------
+    _, h = W:SectionHeader(parent, "FLASH", y); y = y - h
+
+    _, h = W:DualRow(parent, y,
+        Slider("flashTime", "Flash Last", 0, 15, 1,
+            "Seconds before a roll ends when its row flashes. 0 turns the flash off.",
+            function() return not On() end, "Enable Loot Roll Window"),
+        Slider("flashSpeed", "Flash Speed", 1, 20, 1,
+            "How fast the flash pulses.",
+            function() return not On() end, "Enable Loot Roll Window")
+    ); y = y - h
+
+    _, h = W:DualRow(parent, y,
+        { type = "colorpicker", text = "Flash Color", hasAlpha = false,
+          tooltip = "Colour of the row flash and of the countdown when a roll is about to end.",
+          disabled = function() return not On() end, disabledTooltip = "Enable Loot Roll Window",
+          getValue = function() local c = ns.Cfg(); return c.flashR, c.flashG, c.flashB, 1 end,
+          setValue = function(r, g, b)
+              local c = ns.Cfg()
+              c.flashR, c.flashG, c.flashB = r, g, b
+              ns.Refresh()
+          end },
+        EUI.BlankRowCfg()
+    ); y = y - h
+
+    _, h = W:Spacer(parent, y, 20); y = y - h
+
+    ---------------------------------------------------------------------------
     --  LAYOUT
     ---------------------------------------------------------------------------
     _, h = W:SectionHeader(parent, "LAYOUT", y); y = y - h
 
     _, h = W:DualRow(parent, y,
+        { type = "dropdown", text = "Window Direction", values = { left = "Left", right = "Right" },
+          order = { "left", "right" },
+          tooltip = "Left keeps the item icon and roll buttons on the left. Right mirrors the whole row: item icon and buttons on the right, players on the left.",
+          disabled = function() return not On() end, disabledTooltip = "Enable Loot Roll Window",
+          getValue = function() return ns.Cfg().align end,
+          setValue = function(v) ns.Cfg().align = v; ns.Refresh() end },
         { type = "slider", text = "Window Scale", min = 50, max = 200, step = 5,
           tooltip = "Size of the window and its text.",
           disabled = function() return not On() end, disabledTooltip = "Enable Loot Roll Window",
           getValue = function() return math.floor((ns.Cfg().scale or 1) * 100 + 0.5) end,
-          setValue = function(v) ns.Cfg().scale = v / 100; ns.Apply() end },
-        Slider("width", "Width", 240, 460, 10, "Width of the window.",
-            function() return not On() end, "Enable Loot Roll Window")
+          setValue = function(v) ns.Cfg().scale = v / 100; ns.Apply() end }
     ); y = y - h
 
     _, h = W:DualRow(parent, y,
-        Slider("iconSize", "Icon Size", 10, 18, 1,
-            "Size of the Need / Greed / Pass icons, including the roll buttons and the class icons in a crowded row.",
+        Slider("width", "Width", 240, 460, 10, "Width of the window.",
             function() return not On() end, "Enable Loot Roll Window"),
         Slider("lineGap", "Line Spacing", 2, 12, 1,
             "Space between the Need, Greed, Pass and decision rows. Larger values make every item row taller.",
@@ -459,28 +516,6 @@ local function BuildPage(pageName, parent, yOffset)
           tooltip = "Puts the window back in the middle of the screen. Move it with Unlock Mode, or by its header in Show Samples.",
           disabled = function() return not On() end, disabledTooltip = "Enable Loot Roll Window",
           onClick = function() ns.Window.ResetPosition(); ns.Refresh() end }
-    ); y = y - h
-
-    _, h = W:DualRow(parent, y,
-        Slider("flashTime", "Flash Last", 0, 15, 1,
-            "Seconds before a roll ends when its row flashes. 0 turns the flash off.",
-            function() return not On() end, "Enable Loot Roll Window"),
-        Slider("flashSpeed", "Flash Speed", 1, 20, 1,
-            "How fast the flash pulses.",
-            function() return not On() end, "Enable Loot Roll Window")
-    ); y = y - h
-
-    _, h = W:DualRow(parent, y,
-        { type = "colorpicker", text = "Flash Color", hasAlpha = false,
-          tooltip = "Colour of the row flash and of the countdown when a roll is about to end.",
-          disabled = function() return not On() end, disabledTooltip = "Enable Loot Roll Window",
-          getValue = function() local c = ns.Cfg(); return c.flashR, c.flashG, c.flashB, 1 end,
-          setValue = function(r, g, b)
-              local c = ns.Cfg()
-              c.flashR, c.flashG, c.flashB = r, g, b
-              ns.Refresh()
-          end },
-        Blank()
     ); y = y - h
 
     return math.abs(y)

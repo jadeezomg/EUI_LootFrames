@@ -108,6 +108,15 @@ flag that only modifies another control.
   Offset.
 - Window border: Show Behind, Shift X, Shift Y, Width Offset, Height Offset.
 
+The roll buttons live in the ROLL BUTTONS section. Button Style chooses icons
+or labels. Button Background chooses Badge or Full Row, and the two opacity
+sliders set the idle and hover fills. Do not hard-code those values.
+
+The window direction setting mirrors the whole row. Left places the item icon
+and roll buttons on the left. Right places them on the right, right-justifies
+the text and reverses the player order. Every element must move, not only the
+chips.
+
 The cog follows the disabled state of its control. Options that need a
 textured border are disabled with the tooltip "This option requires a textured
 border."
@@ -177,6 +186,11 @@ For a behavior change, load the files in a Lua 5.1 harness that stubs the WoW
 and EllesmereUI APIs. Drive the events and assert on the state and the layout.
 Check the settings rows, the border calls and the alignment. Delete the
 harness before you commit.
+
+Samples must look like live rolls. Sample players start undecided, pick their
+choices while their timer runs, and the sample shows roll numbers only after
+the last player picks. A sample row must not invent numbers at the moment it
+appears.
 
 The harness does not prove visuals. Open the game and look at the window for
 every layout, colour or border change, or state that the visual check is

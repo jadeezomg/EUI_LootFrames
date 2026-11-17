@@ -231,8 +231,11 @@ end
 
 -- Need / Greed / Pass are the atlas icon and the count only; the text label
 -- is the fallback for a client without the atlases.
-local function ChoiceBadge(choice, count, size)
+local function ChoiceBadge(choice, count, size, style)
     local st = CHOICE[choice]
+    if style == "labels" then
+        return BadgeText(st.label, st.color, count)
+    end
     local icon = AtlasTag(st.atlas, size or 12)
     if icon ~= "" then
         return icon .. "|cff8a8a8a" .. count .. "|r"
@@ -315,10 +318,29 @@ function Win.ApplyBorder(cfg)
     end
 end
 
+local function ApplyChrome(cfg)
+    local pad = cfg.pad or PAD
+    local rtl = cfg.align == "right"
+    if win.title then
+        win.title:ClearAllPoints()
+        win.title:SetPoint(rtl and "RIGHT" or "LEFT", win.header, rtl and "RIGHT" or "LEFT", rtl and -pad or pad, 0)
+        win.title:SetJustifyH(rtl and "RIGHT" or "LEFT")
+    end
+    if win.count then
+        win.count:ClearAllPoints()
+        win.count:SetPoint(rtl and "LEFT" or "RIGHT", win.header, rtl and "LEFT" or "RIGHT", rtl and 30 or -30, 0)
+    end
+    if win.close then
+        win.close:ClearAllPoints()
+        win.close:SetPoint(rtl and "TOPLEFT" or "TOPRIGHT", win, rtl and "TOPLEFT" or "TOPRIGHT", rtl and 4 or -4, -4)
+    end
+end
+
 local function ApplyAppearance(cfg)
     ApplyBackground(cfg)
     local ar, ag, ab = Accent()
     if win.title then win.title:SetTextColor(ar, ag, ab) end
+    ApplyChrome(cfg)
     Win.ApplyBorder(cfg)
 end
 
@@ -687,7 +709,8 @@ local function GetBadgeBtn(row, slot)
         local bbg = row.badgeBgs[self.slot]
         if bbg and bbg:IsShown() and bbg._c then
             local c = bbg._c
-            bbg:SetColorTexture(c[1], c[2], c[3], self.enabled and 0.34 or 0.2)
+            local cfg = ns.Cfg()
+            bbg:SetColorTexture(c[1], c[2], c[3], self.enabled and (cfg.buttonHoverA or 0.34) or (cfg.buttonBgA or 0.2))
         end
         ChoiceTip(self)
     end)
@@ -697,7 +720,8 @@ local function GetBadgeBtn(row, slot)
         local bbg = row.badgeBgs[self.slot]
         if bbg and bbg:IsShown() and bbg._c then
             local c = bbg._c
-            bbg:SetColorTexture(c[1], c[2], c[3], 0.2)
+            local cfg = ns.Cfg()
+            bbg:SetColorTexture(c[1], c[2], c[3], cfg.buttonBgA or 0.2)
         end
         if GameTooltip and GameTooltip:IsOwned(self) then GameTooltip:Hide() end
     end)
@@ -709,16 +733,20 @@ local function LayoutRow(row, m, top)
     local W = win:GetWidth()
     local pad, choiceIcon, lineH, lineGap, barH, linesTop, rowH = Metrics()
     local cfg = ns.Cfg()
+    local rtl = cfg.align == "right"
     local itemIcon = cfg.itemIconSize or ICON
-    local textX = pad + itemIcon + 8
+    -- Distance from the leading edge (left, or right when mirrored) to the
+    -- name column. Everything on the top line mirrors around it.
+    local edge = pad + itemIcon + 8
+    local iconX = rtl and (W - pad - itemIcon) or pad
     local timeW = 52
-    local textW = max(TEXT_W_MIN, W - textX - timeW - pad)
+    local textW = max(TEXT_W_MIN, W - edge - timeW - pad)
 
     row.rollID = m.id
     row.hit.link = m.link
     row.hit:ClearAllPoints()
     row.hit:SetPoint("TOPLEFT", row, "TOPLEFT", pad, 0)
-    row.hit:SetSize(textX - pad + textW, 22)
+    row.hit:SetSize(W - pad * 2, 22)
 
     row:ClearAllPoints()
     row:SetPoint("TOPLEFT", win, "TOPLEFT", 0, -top)
@@ -727,7 +755,7 @@ local function LayoutRow(row, m, top)
     row.bg:SetColorTexture(1, 1, 1, 0.035)
 
     row.icon:ClearAllPoints()
-    row.icon:SetPoint("TOPLEFT", row, "TOPLEFT", pad, -6)
+    row.icon:SetPoint("TOPLEFT", row, "TOPLEFT", iconX, -6)
     row.icon:SetSize(itemIcon, itemIcon)
     local qr, qg, qb = QualityColor(m.quality)
     row.icon:SetTexture(m.texture or "Interface\\Icons\\INV_Misc_QuestionMark")
@@ -752,12 +780,24 @@ local function LayoutRow(row, m, top)
     end
 
     row.name:ClearAllPoints()
-    row.name:SetPoint("TOPLEFT", row, "TOPLEFT", textX, -6)
+    if rtl then
+        row.name:SetPoint("TOPRIGHT", row, "TOPRIGHT", -edge, -6)
+        row.name:SetJustifyH("RIGHT")
+    else
+        row.name:SetPoint("TOPLEFT", row, "TOPLEFT", edge, -6)
+        row.name:SetJustifyH("LEFT")
+    end
     row.name:SetWidth(textW)
     row.name:SetText("|cff" .. Hex(qr, qg, qb) .. m.name .. "|r")
 
     row.time:ClearAllPoints()
-    row.time:SetPoint("TOPRIGHT", row, "TOPRIGHT", -pad, -6)
+    if rtl then
+        row.time:SetPoint("TOPLEFT", row, "TOPLEFT", pad, -6)
+        row.time:SetJustifyH("LEFT")
+    else
+        row.time:SetPoint("TOPRIGHT", row, "TOPRIGHT", -pad, -6)
+        row.time:SetJustifyH("RIGHT")
+    end
     row.time:SetWidth(timeW)
     if m.active then
         row.time:SetText(tostring(m.secondsLeft) .. "s")
@@ -770,11 +810,20 @@ local function LayoutRow(row, m, top)
 
     local y = 6 + 16
     row.barBg:ClearAllPoints()
-    row.barBg:SetPoint("TOPLEFT", row, "TOPLEFT", textX, -y)
-    row.barBg:SetPoint("TOPRIGHT", row, "TOPRIGHT", -pad, -y)
+    if rtl then
+        row.barBg:SetPoint("TOPLEFT", row, "TOPLEFT", pad, -y)
+        row.barBg:SetPoint("TOPRIGHT", row, "TOPRIGHT", -edge, -y)
+    else
+        row.barBg:SetPoint("TOPLEFT", row, "TOPLEFT", edge, -y)
+        row.barBg:SetPoint("TOPRIGHT", row, "TOPRIGHT", -pad, -y)
+    end
     row.barBg:SetHeight(barH)
     row.bar:ClearAllPoints()
-    row.bar:SetPoint("TOPLEFT", row.barBg, "TOPLEFT")
+    if rtl then
+        row.bar:SetPoint("TOPRIGHT", row.barBg, "TOPRIGHT")
+    else
+        row.bar:SetPoint("TOPLEFT", row.barBg, "TOPLEFT")
+    end
     row.bar:SetHeight(barH)
     local barKey = cfg.barBgTexture
     local barPath = barKey and barKey ~= "none" and EUI.ResolveTexturePath
@@ -785,7 +834,7 @@ local function LayoutRow(row, m, top)
     else
         row.barBg:SetColorTexture(1, 1, 1, 0.08)
     end
-    local barW = W - textX - pad
+    local barW = W - edge - pad
     row.barW = barW
     row.bar:SetWidth(max(0.0001, barW * (m.fraction or 0)))
     if (m.fraction or 1) <= 0.25 and m.active then
@@ -799,7 +848,7 @@ local function LayoutRow(row, m, top)
     local chipStyle = (cfg.playerStyle or "chips") ~= "text"
     local rightAlign = cfg.align == "right"
 
-    local badgeX = textX + 9
+    local badgeLead = edge + 9
     local chipN = 0
     -- The chip border spills outside the chip frame; leave room for it.
     local chipOver = 2 + min(6, tonumber(cfg.chipBorderSize) or 1)
@@ -861,9 +910,20 @@ local function LayoutRow(row, m, top)
         -- The badge's own width starts the content, so icon badges leave more
         -- room for chips than the text badge of the decision line.
         local bw = min(120, max(24, TextWidth(badgeText) + 8))
-        local areaX = badgeX + bw
+        -- The badge sits just inside the content edge. The player area takes
+        -- the remaining width, on the opposite side of the badge.
+        local areaX, areaW, btnX, btnW
+        if rtl then
+            areaX = pad
+            areaW = max(24, (W - badgeLead - bw) - pad)
+            btnX = W - badgeLead - bw
+        else
+            areaX = badgeLead + bw
+            areaW = max(24, W - areaX - pad)
+            btnX = edge
+        end
+        btnW = 9 + bw
         local canRoll = choice ~= nil and m.active and not m.myChoice
-        local areaW = max(24, W - areaX - pad)
 
         -- While the choice is still open its badge carries the row strip's
         -- colour as a background; once picked, the badge goes plain again.
@@ -875,9 +935,14 @@ local function LayoutRow(row, m, top)
         if canRoll then
             bbg._c = strip
             bbg:ClearAllPoints()
-            bbg:SetPoint("TOPLEFT", row, "TOPLEFT", textX, -ly)
-            bbg:SetPoint("BOTTOMRIGHT", row, "TOPLEFT", areaX, -(ly + lineH))
-            bbg:SetColorTexture(strip[1], strip[2], strip[3], 0.2)
+            if cfg.buttonBgSpan == "row" then
+                bbg:SetPoint("TOPLEFT", row, "TOPLEFT", pad, -ly)
+                bbg:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", -pad, -(ly + lineH))
+            else
+                bbg:SetPoint("TOPLEFT", row, "TOPLEFT", btnX, -ly)
+                bbg:SetPoint("BOTTOMRIGHT", row, "TOPLEFT", btnX + btnW, -(ly + lineH))
+            end
+            bbg:SetColorTexture(strip[1], strip[2], strip[3], cfg.buttonBgA or 0.2)
             bbg:SetAlpha(1)
             bbg:Show()
         else
@@ -885,9 +950,14 @@ local function LayoutRow(row, m, top)
         end
 
         badge:ClearAllPoints()
-        badge:SetPoint("TOPLEFT", row, "TOPLEFT", badgeX, -ly)
+        if rtl then
+            badge:SetPoint("TOPRIGHT", row, "TOPRIGHT", -badgeLead, -ly)
+        else
+            badge:SetPoint("TOPLEFT", row, "TOPLEFT", badgeLead, -ly)
+        end
         badge:SetWidth(bw)
         badge:SetHeight(lineH)
+        badge:SetJustifyH(rtl and "RIGHT" or "LEFT")
         badge:SetText(badgeText)
         badge:Show()
 
@@ -902,8 +972,13 @@ local function LayoutRow(row, m, top)
             btn.disabledReason = enabled and nil
                 or (choice == ROLL_NEED and "You can't need this item." or "You can't greed this item.")
             btn:ClearAllPoints()
-            btn:SetPoint("TOPLEFT", row, "TOPLEFT", textX, -ly)
-            btn:SetSize(areaX - textX, lineH)
+            if cfg.buttonBgSpan == "row" then
+                btn:SetPoint("TOPLEFT", row, "TOPLEFT", pad, -ly)
+                btn:SetSize(W - 2 * pad, lineH)
+            else
+                btn:SetPoint("TOPLEFT", row, "TOPLEFT", btnX, -ly)
+                btn:SetSize(btnW, lineH)
+            end
             badge:SetAlpha(enabled and 0.85 or 0.5)
             btn:Show()
         else
@@ -912,7 +987,11 @@ local function LayoutRow(row, m, top)
         end
 
         band:ClearAllPoints()
-        band:SetPoint("TOPLEFT", row, "TOPLEFT", textX, -(ly + 1))
+        if rtl then
+            band:SetPoint("TOPRIGHT", row, "TOPRIGHT", -edge, -(ly + 1))
+        else
+            band:SetPoint("TOPLEFT", row, "TOPLEFT", edge, -(ly + 1))
+        end
         band:SetHeight(lineH - 2)
         band:SetColorTexture(strip[1], strip[2], strip[3], 1)
         band:Show()
@@ -920,6 +999,7 @@ local function LayoutRow(row, m, top)
         text:SetPoint("TOPLEFT", row, "TOPLEFT", areaX, -ly)
         text:SetWidth(areaW)
         text:SetHeight(lineH)
+        text:SetJustifyH(rtl and "RIGHT" or "LEFT")
         local hit = row.moreHits[n]
 
         local count = players and #players or 0
@@ -996,7 +1076,7 @@ local function LayoutRow(row, m, top)
     for slot, choice in ipairs({ 1, 2, 0 }) do
         local list = (m.groups and m.groups[choice]) or {}
         local st = CHOICE[choice]
-        Slot(slot, ChoiceBadge(choice, #list, choiceIcon), st.strip, list, nil, choice)
+        Slot(slot, ChoiceBadge(choice, #list, choiceIcon, cfg.buttonStyle), st.strip, list, nil, choice)
     end
     local badge, stripPlayer, players
     if m.winner then

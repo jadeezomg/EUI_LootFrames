@@ -40,6 +40,10 @@ local DEFAULTS = {
     maxRows      = 4,
     playerStyle  = "chips",
     align        = "left",
+    buttonStyle  = "icons",
+    buttonBgSpan = "badge",
+    buttonBgA    = 0.2,
+    buttonHoverA = 0.34,
     showRolls    = true,
     chipBgR = 1, chipBgG = 1, chipBgB = 1, chipBgA = 0.05,
     chipBgClass = false,
@@ -87,6 +91,10 @@ local function EnsureDB()
     db.pad      = math.max(4, math.min(16, math.floor((tonumber(db.pad) or 8) + 0.5)))
     if db.playerStyle ~= "text" and db.playerStyle ~= "chips" then db.playerStyle = "chips" end
     if db.align ~= "right" then db.align = "left" end
+    if db.buttonStyle ~= "labels" then db.buttonStyle = "icons" end
+    if db.buttonBgSpan ~= "row" then db.buttonBgSpan = "badge" end
+    db.buttonBgA = math.max(0, math.min(1, tonumber(db.buttonBgA) or 0.2))
+    db.buttonHoverA = math.max(0, math.min(1, tonumber(db.buttonHoverA) or 0.34))
     db.chipBgA = math.max(0, math.min(1, tonumber(db.chipBgA) or 0.05))
     db.chipBorderA = math.max(0, math.min(1, tonumber(db.chipBorderA) or 0.2))
     db.flashTime = math.max(0, math.min(20, math.floor((tonumber(db.flashTime) or 5) + 0.5)))
@@ -570,6 +578,22 @@ local function RemoveNow(e, now)
     return now - since > WAIT_UNRESOLVED
 end
 
+local function PreviewAdvance(now)
+    local changed = false
+    for _, e in pairs(rolls) do
+        local steps = e.previewSteps
+        if e.fake and steps then
+            while e.previewIndex < #steps and now >= e.previewAt + steps[e.previewIndex + 1].at do
+                e.previewIndex = e.previewIndex + 1
+                steps[e.previewIndex].run(e)
+                if e.previewResolve then e.previewResolve() end
+                changed = true
+            end
+        end
+    end
+    return changed
+end
+
 OnTick = function(dt)
     tickAcc = tickAcc + dt
     if tickAcc < 0.1 then return end
@@ -582,6 +606,7 @@ OnTick = function(dt)
         end
     end
     local now = GetTime()
+    if PreviewAdvance(now) then changed = true end
     local removed = false
     local waiting = false
     for id, e in pairs(rolls) do
@@ -615,8 +640,9 @@ function ns.Roll(id, choice)
                 or (choice == ROLL_GREED and STATE.Greed) or STATE.Pass
             e.fakeDrop.playerRollState = st
             for _, r in ipairs(e.fakeDrop.rollInfos or {}) do
-                if r.isSelf then r.state = st; r.roll = 87 end
+                if r.isSelf then r.state = st; r.previewRoll = 87; r.roll = nil end
             end
+            if e.previewResolve then e.previewResolve() end
         end
         ns.Refresh()
         return
@@ -671,8 +697,13 @@ end
 -------------------------------------------------------------------------------
 --  Preview (the settings page's Show Samples button)
 -------------------------------------------------------------------------------
-local function PreviewRoll(name, class, roll, state)
-    return { playerName = name, playerClass = class, roll = roll, state = state }
+-- A preview player keeps the roll number out of the model until every player
+-- has picked. The game generates the numbers only after that point, so the
+-- samples must wait for it too.
+local function PreviewRoll(name, class, roll, state, known)
+    local r = { playerName = name, playerClass = class, previewRoll = roll, state = state }
+    if known then r.roll = roll end
+    return r
 end
 
 local function ClearPreview()
@@ -707,63 +738,138 @@ function ns.Preview()
             end
         end
         rolls[key] = e
+        return e
     end
 
-    -- Small group, short names: full names fit on one line.
-    Fake("preview:small",
+    local function Find(e, name)
+        for _, r in ipairs(e.fakeDrop.rollInfos or {}) do
+            if r.playerName == name then return r end
+        end
+    end
+
+    local function Decide(e, name, state, roll)
+        local r = Find(e, name)
+        if not r then return end
+        r.state, r.previewRoll, r.roll = state, roll, nil
+    end
+
+    -- Every player has picked, so now the numbers exist.
+    local function Resolve(e)
+        local infos = e.fakeDrop and e.fakeDrop.rollInfos
+        if not infos then return end
+        for _, r in ipairs(infos) do
+            if r.state == nil or r.state == STATE.NoRoll then return end
+        end
+        for _, r in ipairs(infos) do
+            if r.roll == nil and r.previewRoll ~= nil then r.roll = r.previewRoll end
+        end
+    end
+
+    local function DecideSelf(choice, state, roll)
+        return function(e)
+            if e.myChoice then return end
+            e.myChoice, e.myChoiceAt = choice, GetTime()
+            e.fakeDrop.playerRollState = state
+            for _, r in ipairs(e.fakeDrop.rollInfos or {}) do
+                if r.isSelf then
+                    r.state, r.previewRoll, r.roll = state, roll, nil
+                end
+            end
+        end
+    end
+
+    local function Schedule(e, steps)
+        e.previewAt = GetTime()
+        e.previewIndex = 0
+        e.previewResolve = function() Resolve(e) end
+        e.previewSteps = steps
+    end
+
+    -- Small group, short names: two players have picked, three are still
+    -- deciding. The numbers appear only when the last player picks.
+    local small = Fake("preview:small",
         "|cffff8000|Hitem:19019|h[Thunderfury, Blessed Blade of the Windseeker]|h|r",
-        "Interface\\Icons\\INV_Sword_39", 5, 60, {
+        "Interface\\Icons\\INV_Sword_39", 5, 30, {
             PreviewRoll("Thrall", "SHAMAN", 87, STATE.NeedMainSpec),
-            PreviewRoll("Jaina", "MAGE", 42, STATE.NeedMainSpec),
+            PreviewRoll("Jaina", "MAGE", 42, STATE.NoRoll),
             PreviewRoll("Sylvanas", "HUNTER", 96, STATE.Greed),
-            PreviewRoll("Cairne", "WARRIOR", 55, STATE.Pass),
-            { playerName = me, playerClass = myClass, isSelf = true, state = STATE.NoRoll },
+            PreviewRoll("Cairne", "WARRIOR", 55, STATE.NoRoll),
+            { playerName = me, playerClass = myClass, isSelf = true, state = STATE.NoRoll, previewRoll = 73 },
         })
+    Schedule(small, {
+        { at = 1.1, run = function(e) Decide(e, "Jaina", STATE.NeedMainSpec, 42) end },
+        { at = 2.2, run = function(e) Decide(e, "Cairne", STATE.Pass, 55) end },
+        { at = 3.4, run = DecideSelf(ROLL_NEED, STATE.NeedMainSpec, 73) },
+    })
 
-    -- Long realm names: the second step (first name only) takes over.
-    Fake("preview:long",
+    -- Long realm names: the second step (first name only) takes over while
+    -- the last players pick.
+    local long = Fake("preview:long",
         "|cffff8000|Hitem:17182|h[Sulfuras, Hand of Ragnaros]|h|r",
-        "Interface\\Icons\\INV_Hammer_Unique_Sulfuras", 5, 60, {
+        "Interface\\Icons\\INV_Hammer_Unique_Sulfuras", 5, 30, {
             PreviewRoll("Maximilian-Stormrage", "PALADIN", 88, STATE.NeedMainSpec),
-            PreviewRoll("Bartholomew-Khadgar", "MAGE", 64, STATE.NeedMainSpec),
-            PreviewRoll("Alexanderthegreat-Proudmoore", "WARRIOR", 41, STATE.Greed),
-            { playerName = me, playerClass = myClass, isSelf = true, state = STATE.NoRoll },
+            PreviewRoll("Bartholomew-Khadgar", "MAGE", 64, STATE.NoRoll),
+            PreviewRoll("Alexanderthegreat-Proudmoore", "WARRIOR", 41, STATE.NoRoll),
+            { playerName = me, playerClass = myClass, isSelf = true, state = STATE.NoRoll, previewRoll = 51 },
         })
+    Schedule(long, {
+        { at = 1.4, run = function(e) Decide(e, "Bartholomew-Khadgar", STATE.NeedMainSpec, 64) end },
+        { at = 2.8, run = function(e) Decide(e, "Alexanderthegreat-Proudmoore", STATE.Greed, 41) end },
+        { at = 4.2, run = DecideSelf(ROLL_GREED, STATE.Greed, 51) },
+    })
 
-    -- A raid-sized list: class icons and "+N" in the Need row.
-    Fake("preview:raid",
+    -- A raid-sized list: a few have picked, the rest decide over the timer.
+    -- The Need row fills, then drops to class icons and "+N" once the numbers
+    -- arrive.
+    local raid = Fake("preview:raid",
         "|cffff8000|Hitem:22630|h[Atiesh, Greatstaff of the Guardian]|h|r",
-        "Interface\\Icons\\INV_Staff_Medivh", 5, 60, {
+        "Interface\\Icons\\INV_Staff_Medivh", 5, 30, {
             PreviewRoll("Maximilian-Stormrage", "PALADIN", 99, STATE.NeedMainSpec),
-            PreviewRoll("Bartholomew-Khadgar", "MAGE", 91, STATE.NeedMainSpec),
-            PreviewRoll("Alexanderthegreat-Proudmoore", "WARRIOR", 88, STATE.NeedMainSpec),
             PreviewRoll("Konstantinos-Area52", "PRIEST", 84, STATE.NeedMainSpec),
             PreviewRoll("Ignatius-Ravencrest", "ROGUE", 79, STATE.NeedMainSpec),
-            PreviewRoll("Sebastian-Tichondrius", "WARLOCK", 72, STATE.NeedMainSpec),
-            PreviewRoll("Wilhelmina-MoonGuard", "DRUID", 66, STATE.NeedMainSpec),
-            PreviewRoll("Cassandra-Silvermoon", "HUNTER", 58, STATE.NeedMainSpec),
-            PreviewRoll("Montgomery-Dalaran", "SHAMAN", 47, STATE.NeedMainSpec),
-            PreviewRoll("Evangeline-ShatteredHand", "PALADIN", 35, STATE.NeedMainSpec),
             PreviewRoll("Ophelia-EmeraldDream", "MAGE", 51, STATE.NeedMainSpec),
             PreviewRoll("Leopold-KelThuzad", "ROGUE", 29, STATE.Greed),
             PreviewRoll("Gwendolyn-Azshara", "DRUID", 12, STATE.Pass),
-            { playerName = me, playerClass = myClass, isSelf = true, state = STATE.NoRoll },
+            PreviewRoll("Bartholomew-Khadgar", "MAGE", 91, STATE.NoRoll),
+            PreviewRoll("Alexanderthegreat-Proudmoore", "WARRIOR", 88, STATE.NoRoll),
+            PreviewRoll("Sebastian-Tichondrius", "WARLOCK", 72, STATE.NoRoll),
+            PreviewRoll("Wilhelmina-MoonGuard", "DRUID", 66, STATE.NoRoll),
+            PreviewRoll("Cassandra-Silvermoon", "HUNTER", 58, STATE.NoRoll),
+            PreviewRoll("Montgomery-Dalaran", "SHAMAN", 47, STATE.NoRoll),
+            PreviewRoll("Evangeline-ShatteredHand", "PALADIN", 35, STATE.NoRoll),
+            { playerName = me, playerClass = myClass, isSelf = true, state = STATE.NoRoll, previewRoll = 61 },
         })
+    Schedule(raid, {
+        { at = 1.0, run = function(e)
+            Decide(e, "Bartholomew-Khadgar", STATE.NeedMainSpec, 91)
+            Decide(e, "Alexanderthegreat-Proudmoore", STATE.NeedMainSpec, 88)
+        end },
+        { at = 2.0, run = function(e)
+            Decide(e, "Sebastian-Tichondrius", STATE.NeedMainSpec, 72)
+            Decide(e, "Wilhelmina-MoonGuard", STATE.NeedMainSpec, 66)
+        end },
+        { at = 3.0, run = function(e)
+            Decide(e, "Cassandra-Silvermoon", STATE.NeedMainSpec, 58)
+            Decide(e, "Montgomery-Dalaran", STATE.NeedMainSpec, 47)
+        end },
+        { at = 4.0, run = function(e) Decide(e, "Evangeline-ShatteredHand", STATE.NeedMainSpec, 35) end },
+        { at = 5.0, run = DecideSelf(ROLL_NEED, STATE.NeedMainSpec, 61) },
+    })
 
     -- Distributed: winner, and the groups at a mid-size.
     Fake("preview:done",
         "|cffa335ee|Hitem:13335|h[Deathcharger's Reins]|h|r",
         "Interface\\Icons\\Ability_Mount_Undeadhorse", 4, 60, {
-            PreviewRoll("Thrall", "SHAMAN", 87, STATE.NeedMainSpec),
-            PreviewRoll("Jaina", "MAGE", 42, STATE.NeedMainSpec),
-            PreviewRoll("Sylvanas", "HUNTER", 96, STATE.Greed),
-            PreviewRoll("Cairne", "WARRIOR", 55, STATE.Greed),
-            PreviewRoll("Valeera", "ROGUE", 18, STATE.Pass),
+            PreviewRoll("Thrall", "SHAMAN", 87, STATE.NeedMainSpec, true),
+            PreviewRoll("Jaina", "MAGE", 42, STATE.NeedMainSpec, true),
+            PreviewRoll("Sylvanas", "HUNTER", 96, STATE.Greed, true),
+            PreviewRoll("Cairne", "WARRIOR", 55, STATE.Greed, true),
+            PreviewRoll("Valeera", "ROGUE", 18, STATE.Pass, true),
             { playerName = me, playerClass = myClass, roll = 12, isSelf = true, state = STATE.Greed },
         }, {
             finished = true, finishedAt = now + 86400, myChoice = ROLL_GREED,
             state = STATE.Greed,
-            winner = PreviewRoll("Sylvanas", "HUNTER", 96),
+            winner = { playerName = "Sylvanas", playerClass = "HUNTER", roll = 96 },
         })
 
     ns.Window.Dismissed = false
