@@ -175,15 +175,6 @@ local function NamePart(r, showRoll)
     return ShortName(r) .. (roll and (" |cffffffff" .. tostring(roll) .. "|r") or "")
 end
 
--- stage: "full" (the name as stored, realm included), "short" (realm
--- dropped), or "name" (short name with no roll number).
-local function ChipText(r, stage, showRoll)
-    local name = (stage == "full") and RawName(r) or PlainName(r)
-    local roll = (showRoll ~= false and stage ~= "name" and ns.Cfg().showRolls ~= false)
-        and tonumber(Plain(r.roll)) or nil
-    return ClassColorName(r, name) .. (roll and (" |cffffffff" .. tostring(roll) .. "|r") or "")
-end
-
 -- The chip's hover: the full name and roll, whatever the chip is drawing.
 local function TooltipPlayer(owner, r, showRoll)
     if not (GameTooltip and r) then return end
@@ -855,8 +846,17 @@ local function LayoutRow(row, m, top)
         row.barBg:SetPoint("TOPRIGHT", row, "TOPRIGHT", -pad, -y)
     end
     row.barBg:SetHeight(barH)
+    -- The roll timer drains. Once the result is lingering, the same bar
+    -- fills from the other side to show how long the result stays.
+    local linger = m.finished and (m.lingerDuration or 0) > 0
     row.bar:ClearAllPoints()
-    if rtl then
+    if linger then
+        if rtl then
+            row.bar:SetPoint("TOPLEFT", row.barBg, "TOPLEFT")
+        else
+            row.bar:SetPoint("TOPRIGHT", row.barBg, "TOPRIGHT")
+        end
+    elseif rtl then
         row.bar:SetPoint("TOPRIGHT", row.barBg, "TOPRIGHT")
     else
         row.bar:SetPoint("TOPLEFT", row.barBg, "TOPLEFT")
@@ -873,8 +873,11 @@ local function LayoutRow(row, m, top)
     end
     local barW = W - edge - pad
     row.barW = barW
-    row.bar:SetWidth(max(0.0001, barW * (m.fraction or 0)))
-    if (m.fraction or 1) <= 0.25 and m.active then
+    row.bar:SetWidth(max(0.0001, barW * (linger and (m.linger or 0) or (m.fraction or 0))))
+    if linger then
+        local ar, ag, ab = Accent()
+        row.bar:SetColorTexture(ar, ag, ab, 0.55)
+    elseif (m.fraction or 1) <= 0.25 and m.active then
         row.bar:SetColorTexture(1, 0.35, 0.35, 1)
     else
         local ar, ag, ab = Accent()
@@ -890,28 +893,89 @@ local function LayoutRow(row, m, top)
     -- The chip border spills outside the chip frame; leave room for it.
     local chipOver = 2 + min(6, tonumber(cfg.chipBorderSize) or 1)
 
-    -- Width of one chip at a reduction step: the full name with roll, the
-    -- short name with roll, the name without the roll, then the class icon.
-    local function ChipWidthFor(r, mode, showRoll)
-        if mode == "icon" then return lineH + 2 end
-        return TextWidth(ChipText(r, mode, showRoll)) + CHIP_PAD * 2
+    local function Utf8Sub(s, n)
+        local out, i, count = {}, 1, 0
+        while i <= #s and count < n do
+            local b = s:byte(i)
+            local len = b < 0x80 and 1 or b < 0xE0 and 2 or b < 0xF0 and 3 or 4
+            out[#out + 1] = s:sub(i, i + len - 1)
+            i = i + len
+            count = count + 1
+        end
+        return table.concat(out)
     end
 
-    local function TotalFor(players, mode, showRoll)
-        local total = 0
+    local ABBREV = { 10, 7, 5, 3, 1 }
+
+    -- Every player gets a chain of forms, most useful first: full name, name
+    -- without realm, shortened names, then the class icon. Rolls stay in
+    -- every named form.
+    local function BuildChips(players, showRoll)
+        local chips = {}
         for i, r in ipairs(players) do
-            total = total + ChipWidthFor(r, mode, showRoll)
-            if i < #players then total = total + CHIP_GAP end
+            local suffix = ""
+            if showRoll then
+                local roll = tonumber(Plain(r.roll))
+                if roll then suffix = " |cffffffff" .. roll .. "|r" end
+            end
+            local short = PlainName(r)
+            local stages = {}
+            local function add(text, cat, icon)
+                local w = icon and (lineH + 2) or (TextWidth(text) + CHIP_PAD * 2)
+                local prev = stages[#stages]
+                if not prev or w < prev.w then
+                    stages[#stages + 1] = { text = text, w = w, cat = cat, icon = icon }
+                end
+            end
+            add(ClassColorName(r, RawName(r)) .. suffix, 1, false)
+            add(ClassColorName(r, short) .. suffix, 2, false)
+            for _, limit in ipairs(ABBREV) do
+                local cut = Utf8Sub(short, limit)
+                if cut ~= short then
+                    add(ClassColorName(r, cut .. ".") .. suffix, 3, false)
+                end
+            end
+            add(nil, 4, true)
+            chips[i] = { r = r, stages = stages, idx = 1, w = stages[1].w }
+        end
+        return chips
+    end
+
+    local function TotalChips(chips)
+        local total = 0
+        for i, c in ipairs(chips) do
+            total = total + c.w + chipOver
+            if i > 1 then total = total + CHIP_GAP end
         end
         return total
     end
 
-    -- Most informative step that shows everyone, icons last.
-    local function ModeFor(players, areaW, showRoll)
-        if TotalFor(players, "full", showRoll) <= areaW then return "full" end
-        if TotalFor(players, "short", showRoll) <= areaW then return "short" end
-        if TotalFor(players, "name", showRoll) <= areaW then return "name" end
-        return "icon"
+    -- Cut realms first, one at a time, then abbreviate the longest names,
+    -- then turn the rest into class icons. Each step picks the largest saving
+    -- in that order, so the most useful information stays longest.
+    local function FitChips(chips, areaW)
+        while TotalChips(chips) > areaW do
+            local lowest
+            for _, c in ipairs(chips) do
+                local nxt = c.stages[c.idx + 1]
+                if nxt and (not lowest or nxt.cat < lowest) then lowest = nxt.cat end
+            end
+            if not lowest then break end
+            local pick, saving
+            for _, c in ipairs(chips) do
+                local nxt = c.stages[c.idx + 1]
+                if nxt and nxt.cat == lowest then
+                    local save = c.w - nxt.w
+                    if save > 0 and (not saving or save > saving
+                        or (save == saving and c.w > pick.w)) then
+                        pick, saving = c, save
+                    end
+                end
+            end
+            if not pick then break end
+            pick.idx = pick.idx + 1
+            pick.w = pick.stages[pick.idx].w
+        end
     end
 
     local function MoreHit(n)
@@ -1064,37 +1128,37 @@ local function LayoutRow(row, m, top)
             text:Show()
             if hit then hit:Hide() end
         elseif chipStyle then
-            local mode = ModeFor(players, areaW, showRoll)
+            local chips = BuildChips(players, showRoll)
+            FitChips(chips, areaW)
+            local fitsAll = TotalChips(chips) <= areaW
             local right = areaX + areaW
-            local overflow = TotalFor(players, mode, showRoll) > areaW
-            local reserve = overflow and (MORE_W + CHIP_GAP) or 0
+            local reserve = fitsAll and 0 or (MORE_W + CHIP_GAP)
             local limit = right - reserve
             local leftLimit = areaX + reserve
             local x = areaX
             local rest = 0
-            for i, r in ipairs(players) do
-                local w = ChipWidthFor(r, mode, showRoll)
+            for i, c in ipairs(chips) do
+                local w = c.w
+                local stage = c.stages[c.idx]
                 -- The border sits outside the chip, so its visual width is
                 -- the text box plus the overhang and the last chip must stop
                 -- short of the +N tag.
                 if rightAlign then
                     local chipX = limit - w - chipOver
                     if chipX < leftLimit then
-                        rest = #players - i + 1
+                        rest = #chips - i + 1
                         break
                     end
                     chipN = chipN + 1
-                    local part = mode ~= "icon" and ChipText(r, mode, showRoll) or nil
-                    PlaceChip(row, chipN, r, part, chipX, ly, w, mode == "icon", lineH, showRoll)
+                    PlaceChip(row, chipN, c.r, stage.icon and nil or stage.text, chipX, ly, w, stage.icon, lineH, showRoll)
                     limit = chipX - CHIP_GAP
                 else
                     if x + w + chipOver > limit then
-                        rest = #players - i + 1
+                        rest = #chips - i + 1
                         break
                     end
                     chipN = chipN + 1
-                    local part = mode ~= "icon" and ChipText(r, mode, showRoll) or nil
-                    PlaceChip(row, chipN, r, part, x, ly, w, mode == "icon", lineH, showRoll)
+                    PlaceChip(row, chipN, c.r, stage.icon and nil or stage.text, x, ly, w, stage.icon, lineH, showRoll)
                     x = x + w + chipOver + CHIP_GAP
                 end
             end
@@ -1263,6 +1327,13 @@ function Win.Timers()
                     if bbg:IsShown() then bbg:SetAlpha(alpha) end
                 end
             end
+        end
+    end
+    for _, row in ipairs(rows) do
+        local m = row.model
+        if m and m.finished and (m.lingerDuration or 0) > 0 and m.lingerStart then
+            local frac = max(0, min(1, (now - m.lingerStart) / m.lingerDuration))
+            row.bar:SetWidth(max(0.0001, (row.barW or 100) * frac))
         end
     end
     for _, rec in ipairs(activeRows) do

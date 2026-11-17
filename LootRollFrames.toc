@@ -2,7 +2,7 @@
 ## Title: |cff0cd29fEllesmereUI|r Loot Rolls
 ## Category: Loot
 ## Notes: Group loot roll window for EllesmereUI: Need, Greed and Pass on every roll, with who chose what and what they rolled. Settings live in the EllesmereUI panel.
-## Version: 2.3.2
+## Version: 2.4.0
 ## Dependencies: EllesmereUI
 ## SavedVariables: LootRollFramesDB
 ## IconTexture: Interface\AddOns\EllesmereUI\media\eg-logo.tga

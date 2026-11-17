@@ -462,6 +462,14 @@ local function BuildModel()
     local out = {}
     for id, e in pairs(rolls) do
         local left = RollTimeLeft(e)
+        local lingerStart, lingerDur, lingerFrac = nil, 0, 0
+        if e.finished and e.resolvedAt then
+            lingerDur = math.max(0, cfg.linger or 10)
+            if lingerDur > 0 then
+                lingerStart = math.max(e.finishedAt or 0, e.resolvedAt)
+                lingerFrac = math.max(0, math.min(1, (GetTime() - lingerStart) / lingerDur))
+            end
+        end
         local m = {
             id         = id,
             link       = e.link,
@@ -473,6 +481,9 @@ local function BuildModel()
             secondsLeft = (not e.finished and left > 0) and math.ceil(left / 1000) or 0,
             fraction   = (not e.finished and e.duration and e.duration > 0)
                 and math.max(0, math.min(1, left / e.duration)) or 0,
+            lingerStart = lingerStart,
+            lingerDuration = lingerDur,
+            linger     = lingerFrac,
             myChoice   = MyChoice(e),
             canNeed    = e.canNeed ~= false,
             canGreed   = e.canGreed ~= false,

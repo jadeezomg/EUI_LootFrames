@@ -206,9 +206,19 @@ the sample shows no numbers. When the viewer picks, or the timer runs out, the
 roll concludes, the timer bar empties, the linger time starts, and the frame
 closes when the last sample lingers out.
 
+The countdown bar drains with the roll timer. When a concluded roll lingers,
+reuse the same bar in reverse: it fills from the other side over the linger
+time. Do not add a second bar for the linger.
+
 Show only the numbers that can decide the item. A Need group always shows its
 rolls. A Greed group shows its rolls only when no player needs the item. A
 Pass group never shows rolls, because a pass cannot win.
+
+Reduce crowded player lines per player, not with one global mode. The order is
+full name, realm dropped, first name abbreviated, class icon. Cut realms one
+at a time, largest saving first, then abbreviate the longest names, then use
+icons. Keep the roll number in every named form. Do not drop rolls before the
+icon step.
 
 Once every player has picked, the decision line becomes the winner line. The
 winner is the highest Need roll, or the highest Greed roll when nobody needed
