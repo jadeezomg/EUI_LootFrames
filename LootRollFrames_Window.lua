@@ -126,6 +126,19 @@ local CHOICE = {
             strip = { 1.00, 0.82, 0.00 } },
 }
 
+-- Line and button colours follow the choice by default, and each one is
+-- configurable. The summary line keeps its own strip colour.
+local function LineColor(choice)
+    local c = ns.Cfg()
+    if choice == ROLL_NEED then
+        return c.needLineR or 0.30, c.needLineG or 1.00, c.needLineB or 0.30
+    elseif choice == ROLL_GREED then
+        return c.greedLineR or 1.00, c.greedLineG or 0.82, c.greedLineB or 0.00
+    elseif choice == ROLL_PASS then
+        return c.passLineR or 0.69, c.passLineG or 0.69, c.passLineB or 0.69
+    end
+end
+
 local atlasCache = {}
 local function AtlasTag(name, size)
     local ok = atlasCache[name]
@@ -714,17 +727,9 @@ local function GetBadgeBtn(row, slot)
         if badge then badge:SetAlpha(1) end
         local cfg = ns.Cfg()
         local bbg = row.badgeBgs[self.slot]
-        if bbg and bbg:IsShown() then
-            local cr, cg, cb
-            if bbg._line then
-                cr, cg, cb = cfg.lineR or 0.6, cfg.lineG or 0.6, cfg.lineB or 0.6
-            elseif bbg._c then
-                local c = bbg._c
-                cr, cg, cb = c[1], c[2], c[3]
-            end
-            if cr then
-                bbg:SetColorTexture(cr, cg, cb, self.enabled and (cfg.buttonHoverA or 0.34) or (cfg.buttonBgA or 0.2))
-            end
+        if bbg and bbg:IsShown() and bbg._r then
+            bbg:SetColorTexture(bbg._r, bbg._g, bbg._b,
+                self.enabled and (cfg.buttonHoverA or 0.34) or (cfg.buttonBgA or 0.2))
         end
         ChoiceTip(self)
     end)
@@ -733,15 +738,8 @@ local function GetBadgeBtn(row, slot)
         if badge then badge:SetAlpha(self.enabled and 0.85 or 0.5) end
         local cfg = ns.Cfg()
         local bbg = row.badgeBgs[self.slot]
-        if bbg and bbg:IsShown() then
-            local cr, cg, cb
-            if bbg._line then
-                cr, cg, cb = cfg.lineR or 0.6, cfg.lineG or 0.6, cfg.lineB or 0.6
-            elseif bbg._c then
-                local c = bbg._c
-                cr, cg, cb = c[1], c[2], c[3]
-            end
-            if cr then bbg:SetColorTexture(cr, cg, cb, cfg.buttonBgA or 0.2) end
+        if bbg and bbg:IsShown() and bbg._r then
+            bbg:SetColorTexture(bbg._r, bbg._g, bbg._b, cfg.buttonBgA or 0.2)
         end
         if GameTooltip and GameTooltip:IsOwned(self) then GameTooltip:Hide() end
     end)
@@ -955,6 +953,7 @@ local function LayoutRow(row, m, top)
             fadeLeft = m.choiceFade and (1 - (GetTime() - m.choiceFade) / CHOICE_FADE) or 0
         end
         local highlight = choice ~= nil and m.active and (not m.myChoice or fadeLeft > 0)
+        local lr, lg, lb = LineColor(choice)
         local bbg = row.badgeBgs[n]
         if not bbg then
             bbg = row:CreateTexture(nil, "BACKGROUND")
@@ -963,7 +962,6 @@ local function LayoutRow(row, m, top)
         if highlight then
             bbg:ClearAllPoints()
             if cfg.buttonBgSpan == "row" then
-                bbg._c, bbg._line = nil, true
                 if rtl then
                     bbg:SetPoint("TOPLEFT", row, "TOPLEFT", pad, -ly)
                     bbg:SetPoint("BOTTOMRIGHT", row, "TOPLEFT", W - edge, -(ly + lineH))
@@ -971,13 +969,13 @@ local function LayoutRow(row, m, top)
                     bbg:SetPoint("TOPLEFT", row, "TOPLEFT", edge, -ly)
                     bbg:SetPoint("BOTTOMRIGHT", row, "TOPLEFT", W - pad, -(ly + lineH))
                 end
-                bbg:SetColorTexture(cfg.lineR or 0.6, cfg.lineG or 0.6, cfg.lineB or 0.6, cfg.buttonBgA or 0.2)
+                bbg:SetColorTexture(lr or strip[1], lg or strip[2], lb or strip[3], cfg.buttonBgA or 0.2)
             else
-                bbg._c, bbg._line = strip, nil
                 bbg:SetPoint("TOPLEFT", row, "TOPLEFT", btnX, -ly)
                 bbg:SetPoint("BOTTOMRIGHT", row, "TOPLEFT", btnX + btnW, -(ly + lineH))
-                bbg:SetColorTexture(strip[1], strip[2], strip[3], cfg.buttonBgA or 0.2)
+                bbg:SetColorTexture(lr or strip[1], lg or strip[2], lb or strip[3], cfg.buttonBgA or 0.2)
             end
+            bbg._r, bbg._g, bbg._b = lr or strip[1], lg or strip[2], lb or strip[3]
             bbg:SetAlpha(m.myChoice and max(0, fadeLeft) or 1)
             bbg:Show()
         else
@@ -1032,7 +1030,7 @@ local function LayoutRow(row, m, top)
             band:SetPoint("TOPLEFT", row, "TOPLEFT", edge, -(ly + 1))
         end
         band:SetHeight(lineH - 2)
-        band:SetColorTexture(cfg.lineR or 0.6, cfg.lineG or 0.6, cfg.lineB or 0.6, 1)
+        band:SetColorTexture(lr or strip[1], lg or strip[2], lb or strip[3], 1)
         band:Show()
         text:ClearAllPoints()
         text:SetPoint("TOPLEFT", row, "TOPLEFT", areaX, -ly)

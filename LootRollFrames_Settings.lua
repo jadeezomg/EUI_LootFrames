@@ -335,6 +335,21 @@ local function BuildPage(pageName, parent, yOffset)
     ---------------------------------------------------------------------------
     _, h = W:SectionHeader(parent, "ROLL BUTTONS", y); y = y - h
 
+    local function LineCfg(prefix, text, tooltip)
+        return { type = "colorpicker", text = text, hasAlpha = false,
+            tooltip = tooltip,
+            disabled = function() return not On() end, disabledTooltip = "Enable Loot Roll Window",
+            getValue = function()
+                local c = ns.Cfg()
+                return c[prefix .. "R"], c[prefix .. "G"], c[prefix .. "B"], 1
+            end,
+            setValue = function(r, g, b)
+                local c = ns.Cfg()
+                c[prefix .. "R"], c[prefix .. "G"], c[prefix .. "B"] = r, g, b
+                ns.Refresh()
+            end }
+    end
+
     _, h = W:DualRow(parent, y,
         { type = "dropdown", text = "Button Style", values = { icons = "Icons", labels = "Labels" },
           order = { "icons", "labels" },
@@ -354,27 +369,24 @@ local function BuildPage(pageName, parent, yOffset)
           disabled = function() return not On() end, disabledTooltip = "Enable Loot Roll Window",
           getValue = function() return ns.Cfg().buttonBgSpan end,
           setValue = function(v) ns.Cfg().buttonBgSpan = v; ns.Refresh() end },
-        { type = "colorpicker", text = "Line Color", hasAlpha = false,
-          tooltip = "Colour of the thin line beside each choice line and of its Full Row background.",
-          disabled = function() return not On() end, disabledTooltip = "Enable Loot Roll Window",
-          getValue = function()
-              local c = ns.Cfg()
-              return c.lineR, c.lineG, c.lineB, 1
-          end,
-          setValue = function(r, g, b)
-              local c = ns.Cfg()
-              c.lineR, c.lineG, c.lineB = r, g, b
-              ns.Refresh()
-          end }
+        Slider("buttonBgA", "Background Opacity", 0, 1, 0.01,
+            "Opacity of the background behind an open roll button.",
+            function() return not On() end, "Enable Loot Roll Window")
     ); y = y - h
 
     _, h = W:DualRow(parent, y,
-        Slider("buttonBgA", "Background Opacity", 0, 1, 0.01,
-            "Opacity of the background behind an open roll button.",
-            function() return not On() end, "Enable Loot Roll Window"),
         Slider("buttonHoverA", "Hover Opacity", 0, 1, 0.01,
             "Opacity of the background while the mouse is over a roll button.",
-            function() return not On() end, "Enable Loot Roll Window")
+            function() return not On() end, "Enable Loot Roll Window"),
+        LineCfg("needLine", "Need Line Color",
+            "Colour of the Need line and its roll button background. Defaults to the Need badge colour.")
+    ); y = y - h
+
+    _, h = W:DualRow(parent, y,
+        LineCfg("greedLine", "Greed Line Color",
+            "Colour of the Greed line and its roll button background. Defaults to the Greed badge colour."),
+        LineCfg("passLine", "Pass Line Color",
+            "Colour of the Pass line and its roll button background. Defaults to the Pass badge colour.")
     ); y = y - h
 
     _, h = W:Spacer(parent, y, 20); y = y - h

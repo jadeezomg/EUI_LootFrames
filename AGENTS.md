@@ -112,9 +112,11 @@ The roll buttons live in the ROLL BUTTONS section. Button Style chooses icons
 or labels. Button Background chooses Badge or Full Row, and the two opacity
 sliders set the idle and hover fills. Do not hard-code those values. Badge
 colours the open button by choice. Full Row draws a band for each open choice
-line. The band starts at the thin line beside the item icon, uses the Line
-Color setting, and keeps the configured line spacing visible between bands.
-The Line Color also paints the thin line itself.
+line. The band starts at the thin line beside the item icon and keeps the
+configured line spacing visible between bands. Each choice has its own line
+colour. The defaults match the badge colours, and the same colour paints the
+thin line and the roll button background. The three pickers live in ROLL
+BUTTONS.
 
 The choice highlight marks a roll where the viewer has not picked yet. After a
 pick it fades out over a short time, in Badge and Full Row modes. Do not leave
