@@ -25,6 +25,8 @@ local ROLL_PASS, ROLL_NEED, ROLL_GREED = 0, 1, 2
 -- Padding, icon size and line spacing are settings; the row height follows
 -- them, so a row is still fixed for a given configuration.
 local LINE_H, LINE_COUNT = 13, 4
+-- How long an open-choice highlight takes to fade after the viewer picks.
+local CHOICE_FADE = 0.25
 
 local function Metrics()
     local cfg = ns.Cfg()
@@ -946,16 +948,19 @@ local function LayoutRow(row, m, top)
         -- can always change the choice. Real rolls hide them once picked.
         local canRoll = choice ~= nil and m.active and (not m.myChoice or m.fake)
 
-        -- While the choice is still open its background shows the roll area.
-        -- Badge mode keeps it on the button. Full Row runs from the line next
-        -- to the item icon across the row at this line's height, so the line
-        -- spacing stays visible between the choice bands.
+        -- The highlight marks a choice the viewer has not made yet. Once a
+        -- choice is made it fades out, and the roll buttons can stay.
+        local fadeLeft = 1
+        if m.myChoice then
+            fadeLeft = m.choiceFade and (1 - (GetTime() - m.choiceFade) / CHOICE_FADE) or 0
+        end
+        local highlight = choice ~= nil and m.active and (not m.myChoice or fadeLeft > 0)
         local bbg = row.badgeBgs[n]
         if not bbg then
             bbg = row:CreateTexture(nil, "BACKGROUND")
             row.badgeBgs[n] = bbg
         end
-        if canRoll then
+        if highlight then
             bbg:ClearAllPoints()
             if cfg.buttonBgSpan == "row" then
                 bbg._c, bbg._line = nil, true
@@ -973,7 +978,7 @@ local function LayoutRow(row, m, top)
                 bbg:SetPoint("BOTTOMRIGHT", row, "TOPLEFT", btnX + btnW, -(ly + lineH))
                 bbg:SetColorTexture(strip[1], strip[2], strip[3], cfg.buttonBgA or 0.2)
             end
-            bbg:SetAlpha(1)
+            bbg:SetAlpha(m.myChoice and max(0, fadeLeft) or 1)
             bbg:Show()
         else
             bbg:Hide()
@@ -1221,6 +1226,24 @@ function Win.Timers()
     local flashTime = cfg.flashTime or 5
     local fr, fg, fb = cfg.flashR or 1, cfg.flashG or 0.25, cfg.flashB or 0.25
     local pulse = 0.5 + 0.5 * math.sin(GetTime() * (cfg.flashSpeed or 9))
+    -- Fade the choice highlights after a pick, including in Full Row mode.
+    local now = GetTime()
+    for _, row in ipairs(rows) do
+        local m = row.model
+        if m and m.myChoice and m.choiceFade then
+            local alpha = 1 - (now - m.choiceFade) / CHOICE_FADE
+            if alpha <= 0 then
+                m.choiceFade = nil
+                for _, bbg in pairs(row.badgeBgs) do
+                    if bbg:IsShown() then bbg:Hide() end
+                end
+            else
+                for _, bbg in pairs(row.badgeBgs) do
+                    if bbg:IsShown() then bbg:SetAlpha(alpha) end
+                end
+            end
+        end
+    end
     for _, rec in ipairs(activeRows) do
         local e = ns.GetEntry(rec.id)
         if e and not e.finished then

@@ -116,6 +116,10 @@ line. The band starts at the thin line beside the item icon, uses the Line
 Color setting, and keeps the configured line spacing visible between bands.
 The Line Color also paints the thin line itself.
 
+The choice highlight marks a roll where the viewer has not picked yet. After a
+pick it fades out over a short time, in Badge and Full Row modes. Do not leave
+the highlight on after the choice.
+
 The window direction setting mirrors the whole row. Left places the item icon
 and roll buttons on the left. Right places them on the right, right-justifies
 the text and reverses the player order. Every element must move, not only the

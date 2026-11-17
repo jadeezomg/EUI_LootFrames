@@ -471,6 +471,7 @@ local function BuildModel()
             myChoice   = MyChoice(e),
             canNeed    = e.canNeed ~= false,
             canGreed   = e.canGreed ~= false,
+            choiceFade = e.choiceFadeAt,
             startedAt  = e.startedAt or 0,
             resolved   = e.resolvedAt ~= nil,
             fake       = e.fake,
@@ -639,6 +640,7 @@ function ns.Roll(id, choice)
     if not e or e.finished or (e.myChoice and not e.fake) then return end
     if e.fake then
         e.myChoice, e.myChoiceAt = choice, GetTime()
+        e.choiceFadeAt = e.myChoiceAt
         if e.fakeDrop then
             local st = (choice == ROLL_NEED and STATE.NeedMainSpec)
                 or (choice == ROLL_GREED and STATE.Greed) or STATE.Pass
@@ -657,6 +659,7 @@ function ns.Roll(id, choice)
         return
     end
     e.myChoice, e.myChoiceAt = choice, GetTime()
+    e.choiceFadeAt = e.myChoiceAt
     ns.Refresh()
 end
 
@@ -774,6 +777,7 @@ function ns.Preview()
             selfInfo.state = selfInfo.autoState or STATE.Greed
             e.myChoice = selfInfo.autoChoice or ROLL_GREED
             e.myChoiceAt = GetTime()
+            e.choiceFadeAt = e.myChoiceAt
             e.fakeDrop.playerRollState = selfInfo.state
         end
         for _, r in ipairs(infos) do
