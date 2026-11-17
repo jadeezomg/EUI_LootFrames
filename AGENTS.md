@@ -31,7 +31,7 @@ window. Do not add a standalone options window.
 
 WoW loads a TOC only from a folder with the same name as the TOC. Install the
 files in `Interface/AddOns/LootRollFrames/`. The Git repository name is
-`LootFrames-Ellsmere` and does not change the folder name.
+`LootFrames-Ellesmere` and does not change the folder name.
 
 ## Lua and client rules
 
