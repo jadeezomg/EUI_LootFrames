@@ -210,6 +210,11 @@ Show only the numbers that can decide the item. A Need group always shows its
 rolls. A Greed group shows its rolls only when no player needs the item. A
 Pass group never shows rolls, because a pass cannot win.
 
+Once every player has picked, the decision line becomes the winner line. The
+winner is the highest Need roll, or the highest Greed roll when nobody needed
+the item. Show the winner's name with the roll. When the game reports the
+award, that winner replaces the computed one.
+
 The harness does not prove visuals. Open the game and look at the window for
 every layout, colour or border change, or state that the visual check is
 missing.

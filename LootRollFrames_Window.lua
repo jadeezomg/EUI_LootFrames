@@ -747,6 +747,25 @@ local function GetBadgeBtn(row, slot)
     return b
 end
 
+-- Once every player has picked, the highest Need roll wins. Greed decides
+-- only when nobody needed. The game's award overrides this when it arrives.
+local function WinnerFromRolls(m)
+    if m.winner then return m.winner end
+    if m.waiting and #m.waiting > 0 then return nil end
+    local groups = m.groups or {}
+    local list = groups[ROLL_NEED]
+    if not list or #list == 0 then list = groups[ROLL_GREED] end
+    if not list then return nil end
+    local best, bestRoll
+    for _, r in ipairs(list) do
+        local roll = tonumber(Plain(r.roll))
+        if roll and (not bestRoll or roll > bestRoll) then
+            best, bestRoll = r, roll
+        end
+    end
+    return best
+end
+
 local function LayoutRow(row, m, top)
     local W = win:GetWidth()
     local pad, choiceIcon, lineH, lineGap, barH, linesTop, rowH = Metrics()
@@ -1124,12 +1143,16 @@ local function LayoutRow(row, m, top)
         local st = CHOICE[choice]
         Slot(slot, ChoiceBadge(choice, #list, choiceIcon, cfg.buttonStyle), st.strip, list, nil, choice, RollsVisible(choice))
     end
+    local winner = WinnerFromRolls(m)
+    local groups = m.groups or {}
+    local decided = not (m.waiting and #m.waiting > 0)
+    local noContest = decided and #(groups[ROLL_NEED] or {}) == 0 and #(groups[ROLL_GREED] or {}) == 0
     local badge, stripPlayer, players
-    if m.winner then
+    if winner then
         badge = BadgeText("WINNER", "ffffd100", nil, nil, true, choiceIcon)
         stripPlayer = { 1.00, 0.82, 0.00 }
-        players = { m.winner }
-    elseif m.allPassed then
+        players = { winner }
+    elseif m.allPassed or noContest then
         badge = BadgeText("ALL PASSED", "ff999999", nil)
         stripPlayer = { 0.55, 0.55, 0.55 }
         players = {}
