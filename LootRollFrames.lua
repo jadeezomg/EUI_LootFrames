@@ -632,7 +632,7 @@ end
 -------------------------------------------------------------------------------
 function ns.Roll(id, choice)
     local e = rolls[id]
-    if not e or e.finished or e.myChoice then return end
+    if not e or e.finished or (e.myChoice and not e.fake) then return end
     if e.fake then
         e.myChoice, e.myChoiceAt = choice, GetTime()
         if e.fakeDrop then
@@ -757,23 +757,24 @@ function ns.Preview()
     local function Resolve(e)
         local infos = e.fakeDrop and e.fakeDrop.rollInfos
         if not infos then return end
+        local selfInfo
         for _, r in ipairs(infos) do
-            if r.state == nil or r.state == STATE.NoRoll then return end
+            if r.isSelf then selfInfo = r end
+            if not r.isSelf and (r.state == nil or r.state == STATE.NoRoll) then return end
+        end
+        -- The viewer keeps a live choice. Give it one when the group resolves
+        -- so the sample completes, and leave the buttons live so the choice
+        -- can change. Rolls exist only after this point.
+        if selfInfo and (selfInfo.state == nil or selfInfo.state == STATE.NoRoll) and not e.myChoice then
+            selfInfo.state = selfInfo.autoState or STATE.Greed
+            e.myChoice = selfInfo.autoChoice or ROLL_GREED
+            e.myChoiceAt = GetTime()
+            e.fakeDrop.playerRollState = selfInfo.state
         end
         for _, r in ipairs(infos) do
-            if r.roll == nil and r.previewRoll ~= nil then r.roll = r.previewRoll end
-        end
-    end
-
-    local function DecideSelf(choice, state, roll)
-        return function(e)
-            if e.myChoice then return end
-            e.myChoice, e.myChoiceAt = choice, GetTime()
-            e.fakeDrop.playerRollState = state
-            for _, r in ipairs(e.fakeDrop.rollInfos or {}) do
-                if r.isSelf then
-                    r.state, r.previewRoll, r.roll = state, roll, nil
-                end
+            if r.roll == nil and r.previewRoll ~= nil
+                and r.state ~= nil and r.state ~= STATE.NoRoll then
+                r.roll = r.previewRoll
             end
         end
     end
@@ -794,12 +795,12 @@ function ns.Preview()
             PreviewRoll("Jaina", "MAGE", 42, STATE.NoRoll),
             PreviewRoll("Sylvanas", "HUNTER", 96, STATE.Greed),
             PreviewRoll("Cairne", "WARRIOR", 55, STATE.NoRoll),
-            { playerName = me, playerClass = myClass, isSelf = true, state = STATE.NoRoll, previewRoll = 73 },
+            { playerName = me, playerClass = myClass, isSelf = true, state = STATE.NoRoll,
+              previewRoll = 73, autoState = STATE.NeedMainSpec, autoChoice = ROLL_NEED },
         })
     Schedule(small, {
         { at = 1.1, run = function(e) Decide(e, "Jaina", STATE.NeedMainSpec, 42) end },
         { at = 2.2, run = function(e) Decide(e, "Cairne", STATE.Pass, 55) end },
-        { at = 3.4, run = DecideSelf(ROLL_NEED, STATE.NeedMainSpec, 73) },
     })
 
     -- Long realm names: the second step (first name only) takes over while
@@ -810,12 +811,12 @@ function ns.Preview()
             PreviewRoll("Maximilian-Stormrage", "PALADIN", 88, STATE.NeedMainSpec),
             PreviewRoll("Bartholomew-Khadgar", "MAGE", 64, STATE.NoRoll),
             PreviewRoll("Alexanderthegreat-Proudmoore", "WARRIOR", 41, STATE.NoRoll),
-            { playerName = me, playerClass = myClass, isSelf = true, state = STATE.NoRoll, previewRoll = 51 },
+            { playerName = me, playerClass = myClass, isSelf = true, state = STATE.NoRoll,
+              previewRoll = 51, autoState = STATE.Greed, autoChoice = ROLL_GREED },
         })
     Schedule(long, {
         { at = 1.4, run = function(e) Decide(e, "Bartholomew-Khadgar", STATE.NeedMainSpec, 64) end },
         { at = 2.8, run = function(e) Decide(e, "Alexanderthegreat-Proudmoore", STATE.Greed, 41) end },
-        { at = 4.2, run = DecideSelf(ROLL_GREED, STATE.Greed, 51) },
     })
 
     -- A raid-sized list: a few have picked, the rest decide over the timer.
@@ -837,7 +838,8 @@ function ns.Preview()
             PreviewRoll("Cassandra-Silvermoon", "HUNTER", 58, STATE.NoRoll),
             PreviewRoll("Montgomery-Dalaran", "SHAMAN", 47, STATE.NoRoll),
             PreviewRoll("Evangeline-ShatteredHand", "PALADIN", 35, STATE.NoRoll),
-            { playerName = me, playerClass = myClass, isSelf = true, state = STATE.NoRoll, previewRoll = 61 },
+            { playerName = me, playerClass = myClass, isSelf = true, state = STATE.NoRoll,
+              previewRoll = 61, autoState = STATE.NeedMainSpec, autoChoice = ROLL_NEED },
         })
     Schedule(raid, {
         { at = 1.0, run = function(e)
@@ -853,7 +855,6 @@ function ns.Preview()
             Decide(e, "Montgomery-Dalaran", STATE.NeedMainSpec, 47)
         end },
         { at = 4.0, run = function(e) Decide(e, "Evangeline-ShatteredHand", STATE.NeedMainSpec, 35) end },
-        { at = 5.0, run = DecideSelf(ROLL_NEED, STATE.NeedMainSpec, 61) },
     })
 
     -- Distributed: winner, and the groups at a mid-size.

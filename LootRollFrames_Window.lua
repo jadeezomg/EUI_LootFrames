@@ -17,7 +17,7 @@ ns.Window = Win
 
 local PAD, ICON, HEADER_H, BAR_H = 8, 22, 28, 2
 local TEXT_W_MIN = 60
-local ROLL_NEED, ROLL_GREED = 1, 2
+local ROLL_PASS, ROLL_NEED, ROLL_GREED = 0, 1, 2
 -- Every item row is the same fixed height from the moment it is built: four
 -- choice slots (Need, Greed, Pass, and the decided line) are always reserved,
 -- so picking an option or new results arriving never resizes the row. The
@@ -100,14 +100,14 @@ local function ShortName(r)
     return ClassColorName(r, PlainName(r))
 end
 
-local function NameList(list)
+local function NameList(list, showRoll)
     local parts = {}
     for i, r in ipairs(list) do
         if i > 10 then
             parts[#parts + 1] = "+" .. tostring(#list - 10) .. " more"
             break
         end
-        local roll = tonumber(Plain(r.roll))
+        local roll = (showRoll ~= false) and tonumber(Plain(r.roll)) or nil
         parts[#parts + 1] = ShortName(r) .. (roll and (" |cffffffff" .. tostring(roll) .. "|r") or "")
     end
     return table.concat(parts, ", ")
@@ -154,24 +154,25 @@ local function Measurer()
     return measure
 end
 
-local function NamePart(r)
-    local roll = ns.Cfg().showRolls ~= false and tonumber(Plain(r.roll)) or nil
+local function NamePart(r, showRoll)
+    local roll = (showRoll ~= false and ns.Cfg().showRolls ~= false)
+        and tonumber(Plain(r.roll)) or nil
     return ShortName(r) .. (roll and (" |cffffffff" .. tostring(roll) .. "|r") or "")
 end
 
 -- stage: "full" (the name as stored, realm included), "short" (realm
 -- dropped), or "name" (short name with no roll number).
-local function ChipText(r, stage)
+local function ChipText(r, stage, showRoll)
     local name = (stage == "full") and RawName(r) or PlainName(r)
-    local roll = (stage ~= "name" and ns.Cfg().showRolls ~= false)
+    local roll = (showRoll ~= false and stage ~= "name" and ns.Cfg().showRolls ~= false)
         and tonumber(Plain(r.roll)) or nil
     return ClassColorName(r, name) .. (roll and (" |cffffffff" .. tostring(roll) .. "|r") or "")
 end
 
 -- The chip's hover: the full name and roll, whatever the chip is drawing.
-local function TooltipPlayer(owner, r)
+local function TooltipPlayer(owner, r, showRoll)
     if not (GameTooltip and r) then return end
-    local roll = tonumber(Plain(r.roll))
+    local roll = (showRoll ~= false) and tonumber(Plain(r.roll)) or nil
     GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
     GameTooltip:AddLine(ClassColorName(r, RawName(r)), 1, 1, 1, true)
     if roll then GameTooltip:AddLine("Roll " .. roll, 1, 1, 1) end
@@ -190,12 +191,12 @@ end
 -- One fixed line per choice: the names that fit are shown and the rest
 -- collapse into "+N". The full list goes in the item tooltip, so a fixed
 -- row height never hides who rolled.
-local function FitList(prefix, list, width)
+local function FitList(prefix, list, width, showRoll)
     local m = Measurer()
     if not m or not width or width <= 0 then return prefix end
     local parts, rest = {}, 0
     for i, r in ipairs(list) do
-        parts[#parts + 1] = NamePart(r)
+        parts[#parts + 1] = NamePart(r, showRoll)
         m:SetText(prefix .. table.concat(parts, ", "))
         if m:GetStringWidth() > width then
             parts[#parts] = nil
@@ -251,7 +252,9 @@ local function TooltipChoices(m)
         local list = m.groups[choice]
         if list and #list > 0 then
             local st = CHOICE[choice]
-            GameTooltip:AddLine("|c" .. st.color .. st.label .. ":|r " .. NameList(list), 1, 1, 1, true)
+            local need = m.groups[ROLL_NEED] or {}
+            local showRoll = choice ~= ROLL_PASS and (choice ~= ROLL_GREED or #need == 0)
+            GameTooltip:AddLine("|c" .. st.color .. st.label .. ":|r " .. NameList(list, showRoll), 1, 1, 1, true)
         end
     end
     if m.winner then
@@ -261,7 +264,7 @@ local function TooltipChoices(m)
     elseif m.allPassed then
         GameTooltip:AddLine("|cff999999ALL PASSED|r", 1, 1, 1, true)
     elseif m.waiting and #m.waiting > 0 then
-        GameTooltip:AddLine("|cff999999DECIDING:|r " .. NameList(m.waiting), 1, 1, 1, true)
+        GameTooltip:AddLine("|cff999999DECIDING:|r " .. NameList(m.waiting, false), 1, 1, 1, true)
     end
 end
 
@@ -627,7 +630,7 @@ local function GetChip(row, index)
     c.icon:SetPoint("CENTER")
     c.icon:SetSize(LINE_H - 2, LINE_H - 2)
     c.icon:Hide()
-    c:SetScript("OnEnter", function(self) TooltipPlayer(self, self.player) end)
+    c:SetScript("OnEnter", function(self) TooltipPlayer(self, self.player, self.showRoll) end)
     c:SetScript("OnLeave", function(self)
         if GameTooltip and GameTooltip:IsOwned(self) then GameTooltip:Hide() end
     end)
@@ -635,7 +638,7 @@ local function GetChip(row, index)
     return c
 end
 
-local function PlaceChip(row, index, r, text, x, y, w, iconMode, h)
+local function PlaceChip(row, index, r, text, x, y, w, iconMode, h, showRoll)
     h = h or LINE_H
     local c = GetChip(row, index)
     local br, bg, bb, ba, er, eg, eb, ea = ChipTone(r)
@@ -655,6 +658,7 @@ local function PlaceChip(row, index, r, text, x, y, w, iconMode, h)
             cfg.chipBorderShiftX, cfg.chipBorderShiftY, nil, nil, nil, bpx)
     end
     c.player = r
+    c.showRoll = showRoll
     if iconMode then
         c.name:Hide()
         local coords = ClassIconCoords(r)
@@ -855,25 +859,25 @@ local function LayoutRow(row, m, top)
 
     -- Width of one chip at a reduction step: the full name with roll, the
     -- short name with roll, the name without the roll, then the class icon.
-    local function ChipWidthFor(r, mode)
+    local function ChipWidthFor(r, mode, showRoll)
         if mode == "icon" then return lineH + 2 end
-        return TextWidth(ChipText(r, mode)) + CHIP_PAD * 2
+        return TextWidth(ChipText(r, mode, showRoll)) + CHIP_PAD * 2
     end
 
-    local function TotalFor(players, mode)
+    local function TotalFor(players, mode, showRoll)
         local total = 0
         for i, r in ipairs(players) do
-            total = total + ChipWidthFor(r, mode)
+            total = total + ChipWidthFor(r, mode, showRoll)
             if i < #players then total = total + CHIP_GAP end
         end
         return total
     end
 
     -- Most informative step that shows everyone, icons last.
-    local function ModeFor(players, areaW)
-        if TotalFor(players, "full") <= areaW then return "full" end
-        if TotalFor(players, "short") <= areaW then return "short" end
-        if TotalFor(players, "name") <= areaW then return "name" end
+    local function ModeFor(players, areaW, showRoll)
+        if TotalFor(players, "full", showRoll) <= areaW then return "full" end
+        if TotalFor(players, "short", showRoll) <= areaW then return "short" end
+        if TotalFor(players, "name", showRoll) <= areaW then return "name" end
         return "icon"
     end
 
@@ -889,7 +893,7 @@ local function LayoutRow(row, m, top)
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
             GameTooltip:AddLine("Not shown", 1, 1, 1)
             for _, r in ipairs(list) do
-                local roll = tonumber(Plain(r.roll))
+                local roll = (self.showRoll ~= false) and tonumber(Plain(r.roll)) or nil
                 GameTooltip:AddLine(ClassColorName(r, RawName(r))
                     .. (roll and (" |cffffffff" .. tostring(roll) .. "|r") or ""), 1, 1, 1, false)
             end
@@ -902,7 +906,8 @@ local function LayoutRow(row, m, top)
         return h
     end
 
-    local function Slot(n, badgeText, strip, players, placeholder, choice)
+    local function Slot(n, badgeText, strip, players, placeholder, choice, visibleRolls)
+        local showRoll = visibleRolls ~= false
         local ly = linesTop + (n - 1) * (lineH + lineGap)
         local badge = row.lines[n] or CreateSlot(row, n)
         local text = row.texts[n]
@@ -923,7 +928,9 @@ local function LayoutRow(row, m, top)
             btnX = edge
         end
         btnW = 9 + bw
-        local canRoll = choice ~= nil and m.active and not m.myChoice
+        -- Samples keep their buttons after the automatic pick, so the viewer
+        -- can always change the choice. Real rolls hide them once picked.
+        local canRoll = choice ~= nil and m.active and (not m.myChoice or m.fake)
 
         -- While the choice is still open its badge carries the row strip's
         -- colour as a background; once picked, the badge goes plain again.
@@ -1008,16 +1015,16 @@ local function LayoutRow(row, m, top)
             text:Show()
             if hit then hit:Hide() end
         elseif chipStyle then
-            local mode = ModeFor(players, areaW)
+            local mode = ModeFor(players, areaW, showRoll)
             local right = areaX + areaW
-            local overflow = TotalFor(players, mode) > areaW
+            local overflow = TotalFor(players, mode, showRoll) > areaW
             local reserve = overflow and (MORE_W + CHIP_GAP) or 0
             local limit = right - reserve
             local leftLimit = areaX + reserve
             local x = areaX
             local rest = 0
             for i, r in ipairs(players) do
-                local w = ChipWidthFor(r, mode)
+                local w = ChipWidthFor(r, mode, showRoll)
                 -- The border sits outside the chip, so its visual width is
                 -- the text box plus the overhang and the last chip must stop
                 -- short of the +N tag.
@@ -1028,8 +1035,8 @@ local function LayoutRow(row, m, top)
                         break
                     end
                     chipN = chipN + 1
-                    local part = mode ~= "icon" and ChipText(r, mode) or nil
-                    PlaceChip(row, chipN, r, part, chipX, ly, w, mode == "icon", lineH)
+                    local part = mode ~= "icon" and ChipText(r, mode, showRoll) or nil
+                    PlaceChip(row, chipN, r, part, chipX, ly, w, mode == "icon", lineH, showRoll)
                     limit = chipX - CHIP_GAP
                 else
                     if x + w + chipOver > limit then
@@ -1037,13 +1044,14 @@ local function LayoutRow(row, m, top)
                         break
                     end
                     chipN = chipN + 1
-                    local part = mode ~= "icon" and ChipText(r, mode) or nil
-                    PlaceChip(row, chipN, r, part, x, ly, w, mode == "icon", lineH)
+                    local part = mode ~= "icon" and ChipText(r, mode, showRoll) or nil
+                    PlaceChip(row, chipN, r, part, x, ly, w, mode == "icon", lineH, showRoll)
                     x = x + w + chipOver + CHIP_GAP
                 end
             end
             if rest > 0 then
                 hit = MoreHit(n)
+                hit.showRoll = showRoll
                 hit.players = {}
                 for j = #players - rest + 1, #players do hit.players[#hit.players + 1] = players[j] end
                 -- Right alignment puts the +N at the left edge, left
@@ -1067,16 +1075,24 @@ local function LayoutRow(row, m, top)
             end
         else
             text:SetJustifyH(rightAlign and "RIGHT" or "LEFT")
-            text:SetText(FitList("", players, areaW))
+            text:SetText(FitList("", players, areaW, showRoll))
             text:Show()
             if hit then hit:Hide() end
         end
     end
 
+    -- A pass can never win, and greed only matters when no player needs the
+    -- item. Hide those numbers so the row shows the rolls that decide it.
+    local needGroup = (m.groups and m.groups[ROLL_NEED]) or {}
+    local function RollsVisible(choice)
+        if choice == ROLL_PASS then return false end
+        if choice == ROLL_GREED then return #needGroup == 0 end
+        return true
+    end
     for slot, choice in ipairs({ 1, 2, 0 }) do
         local list = (m.groups and m.groups[choice]) or {}
         local st = CHOICE[choice]
-        Slot(slot, ChoiceBadge(choice, #list, choiceIcon, cfg.buttonStyle), st.strip, list, nil, choice)
+        Slot(slot, ChoiceBadge(choice, #list, choiceIcon, cfg.buttonStyle), st.strip, list, nil, choice, RollsVisible(choice))
     end
     local badge, stripPlayer, players
     if m.winner then
@@ -1097,7 +1113,7 @@ local function LayoutRow(row, m, top)
         stripPlayer = { 0.45, 0.45, 0.45 }
         players = wait
     end
-    Slot(4, badge, stripPlayer, players)
+    Slot(4, badge, stripPlayer, players, nil, nil, true)
 
     for i = chipN + 1, #row.chips do row.chips[i]:Hide() end
 

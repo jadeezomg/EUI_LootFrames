@@ -190,7 +190,12 @@ harness before you commit.
 Samples must look like live rolls. Sample players start undecided, pick their
 choices while their timer runs, and the sample shows roll numbers only after
 the last player picks. A sample row must not invent numbers at the moment it
-appears.
+appears. When the sample group resolves, the viewer's choice is assigned
+automatically. The roll buttons stay live so the viewer can change it.
+
+Show only the numbers that can decide the item. A Need group always shows its
+rolls. A Greed group shows its rolls only when no player needs the item. A
+Pass group never shows rolls, because a pass cannot win.
 
 The harness does not prove visuals. Open the game and look at the window for
 every layout, colour or border change, or state that the visual check is
