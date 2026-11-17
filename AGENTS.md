@@ -20,6 +20,12 @@ TOC declares `Dependencies: EllesmereUI`. The core registers the plugin with
 `EUI.RegisterPlugin`. The settings page is part of the EllesmereUI settings
 window. Do not add a standalone options window.
 
+EUI gives each plugin one sidebar section. It has no shared Plugins group, so
+the section itself is labelled Plugins and its module row is Loot Rolls. Follow
+PLUGINS_API.md in the main repository: the id is the addon folder name, the TOC
+depends on EllesmereUI, buildPage returns its content height, onReset resets
+the module, labels are plain text, and plugin code never edits EUI sections.
+
 ## Repository layout
 
 | File | Contents |

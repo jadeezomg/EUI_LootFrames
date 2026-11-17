@@ -545,7 +545,9 @@ local function BuildPage(pageName, parent, yOffset)
 end
 
 EUI.RegisterPlugin(ADDON, {
-    label = "Loot Rolls",
+    -- EUI gives every plugin its own sidebar section. There is no shared
+    -- "Plugins" group, so the section itself is named Plugins.
+    label = "Plugins",
     modules = {
         {
             key = "RollWindow",
