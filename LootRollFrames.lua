@@ -470,8 +470,9 @@ local function BuildModel()
             name       = ItemName(e),
             active     = not e.finished,
             finished   = e.finished,
-            secondsLeft = left > 0 and math.ceil(left / 1000) or 0,
-            fraction   = (e.duration and e.duration > 0) and math.max(0, math.min(1, left / e.duration)) or nil,
+            secondsLeft = (not e.finished and left > 0) and math.ceil(left / 1000) or 0,
+            fraction   = (not e.finished and e.duration and e.duration > 0)
+                and math.max(0, math.min(1, left / e.duration)) or 0,
             myChoice   = MyChoice(e),
             canNeed    = e.canNeed ~= false,
             canGreed   = e.canGreed ~= false,
@@ -769,26 +770,13 @@ function ns.Preview()
         if e.finished then return end
         local infos = e.fakeDrop and e.fakeDrop.rollInfos
         if not infos then return end
-        local selfInfo
+        -- The viewer is one of the players. Until every player picks,
+        -- including the viewer, the timer keeps running and no numbers exist.
         for _, r in ipairs(infos) do
-            if r.isSelf then selfInfo = r end
-            if not r.isSelf and (r.state == nil or r.state == STATE.NoRoll) then return end
-        end
-        -- The viewer keeps a live choice. Give it one when the group resolves
-        -- so the sample completes, and leave the buttons live so the choice
-        -- can change. Rolls exist only after this point.
-        if selfInfo and (selfInfo.state == nil or selfInfo.state == STATE.NoRoll) and not e.myChoice then
-            selfInfo.state = selfInfo.autoState or STATE.Greed
-            e.myChoice = selfInfo.autoChoice or ROLL_GREED
-            e.myChoiceAt = GetTime()
-            e.choiceFadeAt = e.myChoiceAt
-            e.fakeDrop.playerRollState = selfInfo.state
+            if r.state == nil or r.state == STATE.NoRoll then return end
         end
         for _, r in ipairs(infos) do
-            if r.roll == nil and r.previewRoll ~= nil
-                and r.state ~= nil and r.state ~= STATE.NoRoll then
-                r.roll = r.previewRoll
-            end
+            if r.roll == nil and r.previewRoll ~= nil then r.roll = r.previewRoll end
         end
         -- Every player has decided: the roll is over, so the result lingers
         -- and the frame closes when the linger time ends.
@@ -814,7 +802,7 @@ function ns.Preview()
             PreviewRoll("Sylvanas", "HUNTER", 96, STATE.Greed),
             PreviewRoll("Cairne", "WARRIOR", 55, STATE.NoRoll),
             { playerName = me, playerClass = myClass, isSelf = true, state = STATE.NoRoll,
-              previewRoll = 73, autoState = STATE.NeedMainSpec, autoChoice = ROLL_NEED },
+              previewRoll = 73 },
         })
     Schedule(small, {
         { at = 5.0, run = function(e) Decide(e, "Jaina", STATE.NeedMainSpec, 42) end },
@@ -830,7 +818,7 @@ function ns.Preview()
             PreviewRoll("Bartholomew-Khadgar", "MAGE", 64, STATE.NoRoll),
             PreviewRoll("Alexanderthegreat-Proudmoore", "WARRIOR", 41, STATE.NoRoll),
             { playerName = me, playerClass = myClass, isSelf = true, state = STATE.NoRoll,
-              previewRoll = 51, autoState = STATE.Greed, autoChoice = ROLL_GREED },
+              previewRoll = 51 },
         })
     Schedule(long, {
         { at = 5.0, run = function(e) Decide(e, "Bartholomew-Khadgar", STATE.NeedMainSpec, 64) end },
@@ -857,7 +845,7 @@ function ns.Preview()
             PreviewRoll("Montgomery-Dalaran", "SHAMAN", 47, STATE.NoRoll),
             PreviewRoll("Evangeline-ShatteredHand", "PALADIN", 35, STATE.NoRoll),
             { playerName = me, playerClass = myClass, isSelf = true, state = STATE.NoRoll,
-              previewRoll = 61, autoState = STATE.NeedMainSpec, autoChoice = ROLL_NEED },
+              previewRoll = 61 },
         })
     Schedule(raid, {
         { at = 4.0, run = function(e)

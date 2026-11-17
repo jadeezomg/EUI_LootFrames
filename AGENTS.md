@@ -200,9 +200,11 @@ harness before you commit.
 Samples must look like live rolls. Sample players start undecided, pick their
 choices while their timer runs, and the sample shows roll numbers only after
 the last player picks. A sample row must not invent numbers at the moment it
-appears. When the sample group resolves, the viewer's choice is assigned
-automatically. The roll then concludes and the linger time starts. Do not keep
-a concluded sample open, and close the frame when the last sample lingers out.
+appears. The sample viewer is one of the players, so the roll waits for the
+viewer's choice. While the viewer has not picked, the timer keeps running and
+the sample shows no numbers. When the viewer picks, or the timer runs out, the
+roll concludes, the timer bar empties, the linger time starts, and the frame
+closes when the last sample lingers out.
 
 Show only the numbers that can decide the item. A Need group always shows its
 rolls. A Greed group shows its rolls only when no player needs the item. A
