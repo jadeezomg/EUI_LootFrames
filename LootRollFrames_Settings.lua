@@ -70,7 +70,7 @@ local function BuildPage(pageName, parent, yOffset)
 
     _, h = W:DualRow(parent, y,
         { type = "dropdown", text = "Player Style", values = playerStyles, order = playerStyleOrder,
-          tooltip = "How each player is drawn: one text line or a chip. Long lists shorten names, then drop the roll, then fall back to class icons with +N; hover shows the full names.",
+          tooltip = "How each player is drawn: one text line or a chip. Long lists drop realms one at a time, shorten long names to two letters, then fall back to class icons with +N; hover shows the full names.",
           disabled = function() return not On() end, disabledTooltip = "Enable Loot Roll Window",
           getValue = function() return ns.Cfg().playerStyle end,
           setValue = function(v) ns.Cfg().playerStyle = v; ns.Refresh() end },

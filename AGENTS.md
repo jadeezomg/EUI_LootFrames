@@ -245,6 +245,16 @@ python3 .tools/guardrails.py
 That script needs a Lua 5.1 `luac`. It checks changed and untracked files
 against `origin/main` or `upstream/main`.
 
+## Documentation
+
+- `README.md` lists every option and its default. When you add, remove, rename
+  or change a setting, update `README.md` in the same commit. Keep the option
+  tables in sync with `DEFAULTS` and `LootRollFrames_Settings.lua`.
+- When the window behavior changes, update the README's "Using the window"
+  section.
+- Keep the install instructions correct when the TOC, folder name or client
+  list changes.
+
 ## Version control
 
 - Make one topic per commit. Use an imperative subject and explain the reason
