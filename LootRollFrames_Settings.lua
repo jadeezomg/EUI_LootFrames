@@ -350,20 +350,31 @@ local function BuildPage(pageName, parent, yOffset)
     _, h = W:DualRow(parent, y,
         { type = "dropdown", text = "Button Background", values = { badge = "Badge", row = "Full Row" },
           order = { "badge", "row" },
-          tooltip = "Badge colours the open roll button. Full Row draws one constant fill across the whole row.",
+          tooltip = "Badge colours the open roll button. Full Row draws a band for each choice line, from the line next to the item icon, with the line spacing left open.",
           disabled = function() return not On() end, disabledTooltip = "Enable Loot Roll Window",
           getValue = function() return ns.Cfg().buttonBgSpan end,
           setValue = function(v) ns.Cfg().buttonBgSpan = v; ns.Refresh() end },
-        Slider("buttonBgA", "Background Opacity", 0, 1, 0.01,
-            "Opacity of the background behind an open roll button.",
-            function() return not On() end, "Enable Loot Roll Window")
+        { type = "colorpicker", text = "Line Color", hasAlpha = false,
+          tooltip = "Colour of the thin line beside each choice line and of its Full Row background.",
+          disabled = function() return not On() end, disabledTooltip = "Enable Loot Roll Window",
+          getValue = function()
+              local c = ns.Cfg()
+              return c.lineR, c.lineG, c.lineB, 1
+          end,
+          setValue = function(r, g, b)
+              local c = ns.Cfg()
+              c.lineR, c.lineG, c.lineB = r, g, b
+              ns.Refresh()
+          end }
     ); y = y - h
 
     _, h = W:DualRow(parent, y,
+        Slider("buttonBgA", "Background Opacity", 0, 1, 0.01,
+            "Opacity of the background behind an open roll button.",
+            function() return not On() end, "Enable Loot Roll Window"),
         Slider("buttonHoverA", "Hover Opacity", 0, 1, 0.01,
             "Opacity of the background while the mouse is over a roll button.",
-            function() return not On() end, "Enable Loot Roll Window"),
-        EUI.BlankRowCfg()
+            function() return not On() end, "Enable Loot Roll Window")
     ); y = y - h
 
     _, h = W:Spacer(parent, y, 20); y = y - h

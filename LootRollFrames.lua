@@ -44,6 +44,7 @@ local DEFAULTS = {
     buttonBgSpan = "badge",
     buttonBgA    = 0.2,
     buttonHoverA = 0.34,
+    lineR = 0.6, lineG = 0.6, lineB = 0.6,
     showRolls    = true,
     chipBgR = 1, chipBgG = 1, chipBgB = 1, chipBgA = 0.05,
     chipBgClass = false,
@@ -95,6 +96,9 @@ local function EnsureDB()
     if db.buttonBgSpan ~= "row" then db.buttonBgSpan = "badge" end
     db.buttonBgA = math.max(0, math.min(1, tonumber(db.buttonBgA) or 0.2))
     db.buttonHoverA = math.max(0, math.min(1, tonumber(db.buttonHoverA) or 0.34))
+    db.lineR = math.max(0, math.min(1, tonumber(db.lineR) or 0.6))
+    db.lineG = math.max(0, math.min(1, tonumber(db.lineG) or 0.6))
+    db.lineB = math.max(0, math.min(1, tonumber(db.lineB) or 0.6))
     db.chipBgA = math.max(0, math.min(1, tonumber(db.chipBgA) or 0.05))
     db.chipBorderA = math.max(0, math.min(1, tonumber(db.chipBorderA) or 0.2))
     db.flashTime = math.max(0, math.min(20, math.floor((tonumber(db.flashTime) or 5) + 0.5)))

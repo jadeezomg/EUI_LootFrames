@@ -111,8 +111,10 @@ flag that only modifies another control.
 The roll buttons live in the ROLL BUTTONS section. Button Style chooses icons
 or labels. Button Background chooses Badge or Full Row, and the two opacity
 sliders set the idle and hover fills. Do not hard-code those values. Badge
-colours the open button by choice. Full Row draws one constant fill across the
-whole row, not one fill per choice and not a colour that follows the players.
+colours the open button by choice. Full Row draws a band for each open choice
+line. The band starts at the thin line beside the item icon, uses the Line
+Color setting, and keeps the configured line spacing visible between bands.
+The Line Color also paints the thin line itself.
 
 The window direction setting mirrors the whole row. Left places the item icon
 and roll buttons on the left. Right places them on the right, right-justifies
