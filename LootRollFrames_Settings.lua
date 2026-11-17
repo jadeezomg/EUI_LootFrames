@@ -350,7 +350,7 @@ local function BuildPage(pageName, parent, yOffset)
     _, h = W:DualRow(parent, y,
         { type = "dropdown", text = "Button Background", values = { badge = "Badge", row = "Full Row" },
           order = { "badge", "row" },
-          tooltip = "Badge keeps the background behind the roll button. Full Row extends it across the whole row.",
+          tooltip = "Badge colours the open roll button. Full Row draws one constant fill across the whole row.",
           disabled = function() return not On() end, disabledTooltip = "Enable Loot Roll Window",
           getValue = function() return ns.Cfg().buttonBgSpan end,
           setValue = function(v) ns.Cfg().buttonBgSpan = v; ns.Refresh() end },

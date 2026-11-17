@@ -399,6 +399,12 @@ local function MakeRow()
     row.badgeBgs = {}
     row.choiceBtns = {}
 
+    -- Full Row mode draws one constant fill behind the whole row. It is not
+    -- tied to a choice or to who is still rolling.
+    row.fullBg = row:CreateTexture(nil, "BACKGROUND")
+    row.fullBg:SetColorTexture(1, 1, 1, 0.08)
+    row.fullBg:Hide()
+
     row.divider = row:CreateTexture(nil, "BACKGROUND")
     row.divider:SetColorTexture(1, 1, 1, 0.05)
 
@@ -710,22 +716,28 @@ local function GetBadgeBtn(row, slot)
     b:SetScript("OnEnter", function(self)
         local badge = row.lines[self.slot]
         if badge then badge:SetAlpha(1) end
+        local cfg = ns.Cfg()
         local bbg = row.badgeBgs[self.slot]
         if bbg and bbg:IsShown() and bbg._c then
             local c = bbg._c
-            local cfg = ns.Cfg()
             bbg:SetColorTexture(c[1], c[2], c[3], self.enabled and (cfg.buttonHoverA or 0.34) or (cfg.buttonBgA or 0.2))
+        end
+        if row.fullBg and row.fullBg:IsShown() then
+            row.fullBg:SetColorTexture(1, 1, 1, (cfg.buttonHoverA or 0.34) * 0.5)
         end
         ChoiceTip(self)
     end)
     b:SetScript("OnLeave", function(self)
         local badge = row.lines[self.slot]
         if badge then badge:SetAlpha(self.enabled and 0.85 or 0.5) end
+        local cfg = ns.Cfg()
         local bbg = row.badgeBgs[self.slot]
         if bbg and bbg:IsShown() and bbg._c then
             local c = bbg._c
-            local cfg = ns.Cfg()
             bbg:SetColorTexture(c[1], c[2], c[3], cfg.buttonBgA or 0.2)
+        end
+        if row.fullBg and row.fullBg:IsShown() then
+            row.fullBg:SetColorTexture(1, 1, 1, (cfg.buttonBgA or 0.2) * 0.5)
         end
         if GameTooltip and GameTooltip:IsOwned(self) then GameTooltip:Hide() end
     end)
@@ -934,21 +946,17 @@ local function LayoutRow(row, m, top)
 
         -- While the choice is still open its badge carries the row strip's
         -- colour as a background; once picked, the badge goes plain again.
+        -- Full Row uses the one constant row fill instead.
         local bbg = row.badgeBgs[n]
         if not bbg then
             bbg = row:CreateTexture(nil, "BACKGROUND")
             row.badgeBgs[n] = bbg
         end
-        if canRoll then
+        if canRoll and cfg.buttonBgSpan ~= "row" then
             bbg._c = strip
             bbg:ClearAllPoints()
-            if cfg.buttonBgSpan == "row" then
-                bbg:SetPoint("TOPLEFT", row, "TOPLEFT", pad, -ly)
-                bbg:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", -pad, -(ly + lineH))
-            else
-                bbg:SetPoint("TOPLEFT", row, "TOPLEFT", btnX, -ly)
-                bbg:SetPoint("BOTTOMRIGHT", row, "TOPLEFT", btnX + btnW, -(ly + lineH))
-            end
+            bbg:SetPoint("TOPLEFT", row, "TOPLEFT", btnX, -ly)
+            bbg:SetPoint("BOTTOMRIGHT", row, "TOPLEFT", btnX + btnW, -(ly + lineH))
             bbg:SetColorTexture(strip[1], strip[2], strip[3], cfg.buttonBgA or 0.2)
             bbg:SetAlpha(1)
             bbg:Show()
@@ -1079,6 +1087,17 @@ local function LayoutRow(row, m, top)
             text:Show()
             if hit then hit:Hide() end
         end
+    end
+
+    local rowMode = cfg.buttonBgSpan == "row"
+    if rowMode and m.active then
+        row.fullBg:ClearAllPoints()
+        row.fullBg:SetPoint("TOPLEFT", row, "TOPLEFT", pad, -1)
+        row.fullBg:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", -pad, 1)
+        row.fullBg:SetColorTexture(1, 1, 1, (cfg.buttonBgA or 0.2) * 0.5)
+        row.fullBg:Show()
+    else
+        row.fullBg:Hide()
     end
 
     -- A pass can never win, and greed only matters when no player needs the

@@ -582,7 +582,7 @@ local function PreviewAdvance(now)
     local changed = false
     for _, e in pairs(rolls) do
         local steps = e.previewSteps
-        if e.fake and steps then
+        if e.fake and steps and not e.finished then
             while e.previewIndex < #steps and now >= e.previewAt + steps[e.previewIndex + 1].at do
                 e.previewIndex = e.previewIndex + 1
                 steps[e.previewIndex].run(e)
@@ -755,6 +755,7 @@ function ns.Preview()
 
     -- Every player has picked, so now the numbers exist.
     local function Resolve(e)
+        if e.finished then return end
         local infos = e.fakeDrop and e.fakeDrop.rollInfos
         if not infos then return end
         local selfInfo
@@ -777,6 +778,11 @@ function ns.Preview()
                 r.roll = r.previewRoll
             end
         end
+        -- Every player has decided: the roll is over, so the result lingers
+        -- and the frame closes when the linger time ends.
+        e.finished = true
+        e.finishedAt = GetTime()
+        e.resolvedAt = e.finishedAt
     end
 
     local function Schedule(e, steps)
@@ -799,8 +805,8 @@ function ns.Preview()
               previewRoll = 73, autoState = STATE.NeedMainSpec, autoChoice = ROLL_NEED },
         })
     Schedule(small, {
-        { at = 1.1, run = function(e) Decide(e, "Jaina", STATE.NeedMainSpec, 42) end },
-        { at = 2.2, run = function(e) Decide(e, "Cairne", STATE.Pass, 55) end },
+        { at = 5.0, run = function(e) Decide(e, "Jaina", STATE.NeedMainSpec, 42) end },
+        { at = 10.0, run = function(e) Decide(e, "Cairne", STATE.Pass, 55) end },
     })
 
     -- Long realm names: the second step (first name only) takes over while
@@ -815,8 +821,8 @@ function ns.Preview()
               previewRoll = 51, autoState = STATE.Greed, autoChoice = ROLL_GREED },
         })
     Schedule(long, {
-        { at = 1.4, run = function(e) Decide(e, "Bartholomew-Khadgar", STATE.NeedMainSpec, 64) end },
-        { at = 2.8, run = function(e) Decide(e, "Alexanderthegreat-Proudmoore", STATE.Greed, 41) end },
+        { at = 5.0, run = function(e) Decide(e, "Bartholomew-Khadgar", STATE.NeedMainSpec, 64) end },
+        { at = 10.0, run = function(e) Decide(e, "Alexanderthegreat-Proudmoore", STATE.Greed, 41) end },
     })
 
     -- A raid-sized list: a few have picked, the rest decide over the timer.
@@ -842,19 +848,19 @@ function ns.Preview()
               previewRoll = 61, autoState = STATE.NeedMainSpec, autoChoice = ROLL_NEED },
         })
     Schedule(raid, {
-        { at = 1.0, run = function(e)
+        { at = 4.0, run = function(e)
             Decide(e, "Bartholomew-Khadgar", STATE.NeedMainSpec, 91)
             Decide(e, "Alexanderthegreat-Proudmoore", STATE.NeedMainSpec, 88)
         end },
-        { at = 2.0, run = function(e)
+        { at = 8.0, run = function(e)
             Decide(e, "Sebastian-Tichondrius", STATE.NeedMainSpec, 72)
             Decide(e, "Wilhelmina-MoonGuard", STATE.NeedMainSpec, 66)
         end },
-        { at = 3.0, run = function(e)
+        { at = 12.0, run = function(e)
             Decide(e, "Cassandra-Silvermoon", STATE.NeedMainSpec, 58)
             Decide(e, "Montgomery-Dalaran", STATE.NeedMainSpec, 47)
         end },
-        { at = 4.0, run = function(e) Decide(e, "Evangeline-ShatteredHand", STATE.NeedMainSpec, 35) end },
+        { at = 16.0, run = function(e) Decide(e, "Evangeline-ShatteredHand", STATE.NeedMainSpec, 35) end },
     })
 
     -- Distributed: winner, and the groups at a mid-size.
@@ -868,7 +874,7 @@ function ns.Preview()
             PreviewRoll("Valeera", "ROGUE", 18, STATE.Pass, true),
             { playerName = me, playerClass = myClass, roll = 12, isSelf = true, state = STATE.Greed },
         }, {
-            finished = true, finishedAt = now + 86400, myChoice = ROLL_GREED,
+            finished = true, finishedAt = now, myChoice = ROLL_GREED,
             state = STATE.Greed,
             winner = { playerName = "Sylvanas", playerClass = "HUNTER", roll = 96 },
         })

@@ -110,7 +110,9 @@ flag that only modifies another control.
 
 The roll buttons live in the ROLL BUTTONS section. Button Style chooses icons
 or labels. Button Background chooses Badge or Full Row, and the two opacity
-sliders set the idle and hover fills. Do not hard-code those values.
+sliders set the idle and hover fills. Do not hard-code those values. Badge
+colours the open button by choice. Full Row draws one constant fill across the
+whole row, not one fill per choice and not a colour that follows the players.
 
 The window direction setting mirrors the whole row. Left places the item icon
 and roll buttons on the left. Right places them on the right, right-justifies
@@ -191,7 +193,8 @@ Samples must look like live rolls. Sample players start undecided, pick their
 choices while their timer runs, and the sample shows roll numbers only after
 the last player picks. A sample row must not invent numbers at the moment it
 appears. When the sample group resolves, the viewer's choice is assigned
-automatically. The roll buttons stay live so the viewer can change it.
+automatically. The roll then concludes and the linger time starts. Do not keep
+a concluded sample open, and close the frame when the last sample lingers out.
 
 Show only the numbers that can decide the item. A Need group always shows its
 rolls. A Greed group shows its rolls only when no player needs the item. A
