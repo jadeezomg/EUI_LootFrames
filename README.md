@@ -48,8 +48,10 @@ Crowded player lines keep names as long as possible. The window drops realm
 names one at a time, shortens long first names to two letters, and then uses
 class icons. Hover a chip to see the full name and roll.
 
-The countdown bar drains with the roll timer. When a roll concludes, the same
-bar fills in reverse during the linger time. Keep Roll Results sets that time.
+The countdown bar drains with the roll timer. Your choice does not stop the
+countdown. The timer continues until the roll ends or the game reports the
+award. When a roll concludes, the same bar fills in reverse during the linger
+time. Keep Roll Results sets that time.
 
 ## Options
 

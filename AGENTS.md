@@ -173,6 +173,9 @@ border."
   per roll.
 - Use the EllesmereUI tick driver for timers. Do not use `OnUpdate` where a
   tick works.
+- The countdown runs from the roll duration until the roll deadline or the
+  history award. A player choice can close the personal roll window early. Do
+  not treat that as the end of the group roll.
 - Do not write to Blizzard's frames. Hide the stock loot roll frames only
   while this window is enabled, and restore them when the addon is disabled
   or the client blocks a roll.

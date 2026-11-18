@@ -147,12 +147,15 @@ end
 local function RollTimeLeft(e)
     if e.fake then return math.max(0, (e.deadline - GetTime()) * 1000) end
     if e.finished then return 0 end
+    local localLeft = math.max(0, (e.deadline - GetTime()) * 1000)
     if GetLootRollTimeLeft then
         local ok, left = pcall(GetLootRollTimeLeft, e.id)
         left = ok and tonumber(plain(left)) or nil
-        if left then return left end
+        -- A choice closes your own roll window and can report 0 while the
+        -- group roll still runs. Keep the local deadline in that case.
+        if left and left > 0 then return left end
     end
-    return math.max(0, (e.deadline - GetTime()) * 1000)
+    return localLeft
 end
 ns.TimeLeft = RollTimeLeft
 
@@ -551,8 +554,14 @@ end
 local function NoteResolutions()
     local now = GetTime()
     for _, e in pairs(rolls) do
-        if not e.resolvedAt and e.drop and DropDistributed(e.drop) then
-            e.resolvedAt = now
+        if e.drop and DropDistributed(e.drop) then
+            if not e.resolvedAt then e.resolvedAt = now end
+            -- The award can arrive before the deadline, so it ends the roll
+            -- even when the local timer still has time.
+            if not e.finished then
+                e.finished = true
+                e.finishedAt = now
+            end
         end
     end
 end
@@ -1056,7 +1065,13 @@ local function OnEvent(_, event, arg1, arg2)
             ns.StartRoll(rollID, arg2)
         end
     elseif event == "CANCEL_LOOT_ROLL" then
-        FinishRoll(plain(arg1))
+        local id = plain(arg1)
+        local e = id ~= nil and rolls[id] or nil
+        -- A choice closes your own roll window. The group roll can still be
+        -- running, so keep it until the deadline or the history award.
+        if not e or not e.myChoice or (e.deadline and e.deadline <= GetTime()) then
+            FinishRoll(id)
+        end
         ns.Refresh()
     elseif event == "CANCEL_ALL_LOOT_ROLLS" then
         for id, e in pairs(rolls) do
