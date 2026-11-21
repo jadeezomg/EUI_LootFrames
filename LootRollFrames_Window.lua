@@ -383,7 +383,7 @@ local function MakeRow()
     local row = CreateFrame("Frame", nil, win)
     row:SetFrameLevel(win:GetFrameLevel() + 1)
 
-    row.innerBg = row:CreateTexture(nil, "BACKGROUND", -2)
+    row.innerBg = row:CreateTexture(nil, "BACKGROUND", nil, -2)
     row.innerBg:Hide()
     row.innerBorder = CreateFrame("Frame", nil, row)
     row.innerBorder:Hide()
