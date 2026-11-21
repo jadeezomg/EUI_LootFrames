@@ -39,6 +39,20 @@ WoW loads a TOC only from a folder with the same name as the TOC. Install the
 files in `Interface/AddOns/LootRollFrames/`. The Git repository name is
 `LootFrames-Ellesmere` and does not change the folder name.
 
+## Local install
+
+The client reads its own copy from `Interface/AddOns/LootRollFrames`, not from
+this repository. `sync.sh` copies the four addon files there.
+
+1. Copy `.install-path.example` to `.install-path`.
+2. Put the full path to the client's `LootRollFrames` folder on the first line.
+   A leading `~/` is expanded.
+3. Run `./sync.sh` after each change.
+
+`.install-path` is gitignored. Do not commit it. The script checks that the
+path ends in `/LootRollFrames` and copies only the four addon files. It does not
+delete anything from the destination.
+
 ## Lua and client rules
 
 - Every file compiles under Lua 5.1. A file may have at most 200 locals in
@@ -205,6 +219,9 @@ For a behavior change, load the files in a Lua 5.1 harness that stubs the WoW
 and EllesmereUI APIs. Drive the events and assert on the state and the layout.
 Check the settings rows, the border calls and the alignment. Delete the
 harness before you commit.
+
+After the checks pass, run `./sync.sh` so the client copy matches the
+repository.
 
 Samples must look like live rolls. Sample players start undecided, pick their
 choices while their timer runs, and the sample shows roll numbers only after
