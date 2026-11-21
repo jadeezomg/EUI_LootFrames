@@ -910,8 +910,7 @@ local function GetBadgeBtn(row, slot)
         local cfg = ns.Cfg()
         local bbg = row.badgeBgs[self.slot]
         if bbg and bbg:IsShown() and bbg._r then
-            local a = bbg._chosen and (cfg.buttonHoverA or 0.34) or (cfg.buttonBgA or 0.2)
-            PaintButtonBg(bbg, bbg._r, bbg._g, bbg._b, a)
+            PaintButtonBg(bbg, bbg._r, bbg._g, bbg._b, cfg.buttonBgA or 0.2)
         end
         if GameTooltip and GameTooltip:IsOwned(self) then GameTooltip:Hide() end
     end)
@@ -1329,7 +1328,9 @@ local function LayoutRow(row, m, top)
         local highlight = choice ~= nil
             and (chosen or (m.active and (not m.myChoice or fadeLeft > 0)))
         local lr, lg, lb = LineColor(choice)
-        local baseA = chosen and (cfg.buttonHoverA or 0.34) or (cfg.buttonBgA or 0.2)
+        -- The chosen line keeps the highlight, but at the normal opacity.
+        -- Mouseover lifts it for as long as the pointer is there.
+        local baseA = cfg.buttonBgA or 0.2
         local bbg = row.badgeBgs[n]
         if not bbg then
             bbg = row:CreateTexture(nil, "BACKGROUND")
