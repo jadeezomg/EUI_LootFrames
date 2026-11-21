@@ -36,11 +36,12 @@ local function Metrics()
     local lineH = max(LINE_H, icon)
     local gap = cfg.lineGap or 6
     local barH = cfg.barHeight or BAR_H
-    local top = 6 + 16 + barH + 4
-    local rowH = top + LINE_COUNT * lineH + (LINE_COUNT - 1) * gap + 6
+    local innerPad = (cfg.innerBox and (cfg.innerPad or 0)) or 0
+    local top = 6 + 16 + barH + 4 + innerPad
+    local rowH = top + LINE_COUNT * lineH + (LINE_COUNT - 1) * gap + 6 + innerPad
     -- A large item icon hangs below the name line, so the row must be at
-    -- least as tall as the icon.
-    rowH = max(rowH, 6 + itemIcon + 6)
+    -- least as tall as the icon and the inner padding.
+    rowH = max(rowH, 6 + innerPad + itemIcon + 6 + innerPad)
     return pad, icon, lineH, gap, barH, top, rowH
 end
 
@@ -320,12 +321,18 @@ local function PaintButtonBg(bg, r, g, b, a)
     if key and key ~= "none" and EUI.ResolveTexturePath then
         path = EUI.ResolveTexturePath(BackgroundTextures(), key, nil)
     end
+    bg._a = a
     if path then
         bg:SetTexture(path)
-        bg:SetVertexColor(r, g, b, a)
+        bg:SetVertexColor(r, g, b, 1)
     else
-        bg:SetColorTexture(r, g, b, a)
+        -- Clear a tint left over from a textured style, then paint the colour.
+        bg:SetVertexColor(1, 1, 1, 1)
+        bg:SetColorTexture(r, g, b, 1)
     end
+    -- Texture alpha is applied on the region, not the vertex colour, so the
+    -- opacity slider also works for a bar texture.
+    bg:SetAlpha(a * (bg._fade or 1))
 end
 
 local function ApplyBackground(cfg)
@@ -789,9 +796,15 @@ local function WinnerFromRolls(m)
 end
 
 local function LayoutRow(row, m, top)
-    local W = win:GetWidth()
-    local pad, choiceIcon, lineH, lineGap, barH, linesTop, rowH = Metrics()
     local cfg = ns.Cfg()
+    local outerPad = (cfg.outerBox ~= false and (cfg.outerPad or 0)) or 0
+    local W = win:GetWidth() - 2 * outerPad
+    local pad, choiceIcon, lineH, lineGap, barH, linesTop, rowH = Metrics()
+    local innerPad = (cfg.innerBox and (cfg.innerPad or 0)) or 0
+    -- Inner padding moves the content in from the row box, so the base
+    -- content padding grows with it.
+    pad = pad + innerPad
+    local topPad = 6 + innerPad
     local rtl = cfg.align == "right"
     local itemIcon = cfg.itemIconSize or ICON
     -- Distance from the leading edge (left, or right when mirrored) to the
@@ -808,8 +821,8 @@ local function LayoutRow(row, m, top)
     row.hit:SetSize(W - pad * 2, 22)
 
     row:ClearAllPoints()
-    row:SetPoint("TOPLEFT", win, "TOPLEFT", 0, -top)
-    row:SetPoint("TOPRIGHT", win, "TOPRIGHT", 0, -top)
+    row:SetPoint("TOPLEFT", win, "TOPLEFT", outerPad, -top)
+    row:SetPoint("TOPRIGHT", win, "TOPRIGHT", -outerPad, -top)
 
     -- Each roll can carry its own box, drawn with the same background and
     -- border settings as the window.
@@ -835,7 +848,7 @@ local function LayoutRow(row, m, top)
     row.bg:SetColorTexture(1, 1, 1, flat and 0 or 0.035)
 
     row.icon:ClearAllPoints()
-    row.icon:SetPoint("TOPLEFT", row, "TOPLEFT", iconX, -6)
+    row.icon:SetPoint("TOPLEFT", row, "TOPLEFT", iconX, -topPad)
     row.icon:SetSize(itemIcon, itemIcon)
     local qr, qg, qb = QualityColor(m.quality)
     row.icon:SetTexture(m.texture or "Interface\\Icons\\INV_Misc_QuestionMark")
@@ -861,10 +874,10 @@ local function LayoutRow(row, m, top)
 
     row.name:ClearAllPoints()
     if rtl then
-        row.name:SetPoint("TOPRIGHT", row, "TOPRIGHT", -edge, -6)
+        row.name:SetPoint("TOPRIGHT", row, "TOPRIGHT", -edge, -topPad)
         row.name:SetJustifyH("RIGHT")
     else
-        row.name:SetPoint("TOPLEFT", row, "TOPLEFT", edge, -6)
+        row.name:SetPoint("TOPLEFT", row, "TOPLEFT", edge, -topPad)
         row.name:SetJustifyH("LEFT")
     end
     row.name:SetWidth(textW)
@@ -872,10 +885,10 @@ local function LayoutRow(row, m, top)
 
     row.time:ClearAllPoints()
     if rtl then
-        row.time:SetPoint("TOPLEFT", row, "TOPLEFT", pad, -6)
+        row.time:SetPoint("TOPLEFT", row, "TOPLEFT", pad, -topPad)
         row.time:SetJustifyH("LEFT")
     else
-        row.time:SetPoint("TOPRIGHT", row, "TOPRIGHT", -pad, -6)
+        row.time:SetPoint("TOPRIGHT", row, "TOPRIGHT", -pad, -topPad)
         row.time:SetJustifyH("RIGHT")
     end
     row.time:SetWidth(timeW)
@@ -888,7 +901,7 @@ local function LayoutRow(row, m, top)
         row.time:SetText("")
     end
 
-    local y = 6 + 16
+    local y = 6 + 16 + innerPad
     row.barBg:ClearAllPoints()
     if rtl then
         row.barBg:SetPoint("TOPLEFT", row, "TOPLEFT", pad, -y)
@@ -1114,7 +1127,8 @@ local function LayoutRow(row, m, top)
                 PaintButtonBg(bbg, lr or strip[1], lg or strip[2], lb or strip[3], cfg.buttonBgA or 0.2)
             end
             bbg._r, bbg._g, bbg._b = lr or strip[1], lg or strip[2], lb or strip[3]
-            bbg:SetAlpha(m.myChoice and max(0, fadeLeft) or 1)
+            bbg._fade = m.myChoice and max(0, fadeLeft) or 1
+            bbg:SetAlpha((bbg._a or cfg.buttonBgA or 0.2) * bbg._fade)
             bbg:Show()
         else
             bbg:Hide()
@@ -1328,7 +1342,8 @@ function Win.Show(model)
     win.close:SetShown(headerOn)
 
     activeRows = {}
-    local y = headerOn and HEADER_H or 4
+    local outerPad = (cfg.outerBox ~= false and (cfg.outerPad or 0)) or 0
+    local y = (headerOn and HEADER_H or 4) + outerPad
     for i = 1, shown do
         local m = model[i]
         local row = rows[i]
@@ -1347,8 +1362,8 @@ function Win.Show(model)
 
     if total > shown then
         moreText:ClearAllPoints()
-        moreText:SetPoint("TOPLEFT", win, "TOPLEFT", pad, -y)
-        moreText:SetPoint("TOPRIGHT", win, "TOPRIGHT", -pad, -y)
+        moreText:SetPoint("TOPLEFT", win, "TOPLEFT", pad + outerPad, -y)
+        moreText:SetPoint("TOPRIGHT", win, "TOPRIGHT", -(pad + outerPad), -y)
         moreText:SetText(("+%d more roll%s"):format(total - shown, total - shown == 1 and "" or "s"))
         moreText:Show()
         y = y + 16
@@ -1357,7 +1372,7 @@ function Win.Show(model)
     end
 
     win.count:SetText(total == 1 and "1 roll" or (total .. " rolls"))
-    win:SetHeight(y + 6)
+    win:SetHeight(y + 6 + outerPad)
     if anchor then anchor:SetSize(win:GetWidth(), win:GetHeight()) end
 end
 
@@ -1376,11 +1391,13 @@ function Win.Timers()
             if alpha <= 0 then
                 m.choiceFade = nil
                 for _, bbg in pairs(row.badgeBgs) do
+                    bbg._fade = 0
                     if bbg:IsShown() then bbg:Hide() end
                 end
             else
                 for _, bbg in pairs(row.badgeBgs) do
-                    if bbg:IsShown() then bbg:SetAlpha(alpha) end
+                    bbg._fade = alpha
+                    if bbg:IsShown() then bbg:SetAlpha((bbg._a or 0.2) * alpha) end
                 end
             end
         end

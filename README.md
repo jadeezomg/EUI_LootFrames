@@ -79,6 +79,8 @@ or border style name comes from the EllesmereUI catalog.
 | --- | --- | --- |
 | Outer Box | Draws the window background and border behind all rolls. Turn it off so each roll can stand alone. | On |
 | Inner Box | Draws the background and border from this section around each roll. Turn Outer Box off for separate boxes. | Off |
+| Outer Padding | Space between the outer box and each roll box. | 0 |
+| Inner Padding | Space between each roll box edge and its content. | 0 |
 | Background Texture | Texture behind the roll list. | None |
 | Background Opacity | Opacity of the window background. | 97% |
 | Background Color | Color of the window background. | Dark brown |
@@ -132,7 +134,7 @@ have not made a choice yet.
 | Window Scale | Size of the window and its text. Range 50% to 300%. | 100% |
 | Width | Window width. Range 240 to 800. | 300 |
 | Line Spacing | Space between the Need, Greed, Pass and decision lines. Range 2 to 30. | 6 |
-| Inner Padding | Space between the window edge and its content. Range 4 to 32. | 8 |
+| Content Padding | Base space between a row edge and its content. Inner Box padding adds to it. Range 4 to 32. | 8 |
 | Max Rolls | Number of rolls shown at once. Extra rolls are counted below the window. Range 1 to 12. | 4 |
 | Keep Roll Results | Seconds that a concluded roll stays on screen. A roll that is waiting for the game award stays longer. Range 0 to 60. | 10 |
 | Position, Reset | Returns the window to the center of the screen. Move it with Unlock Mode, or by its header in Show Samples. | Center |

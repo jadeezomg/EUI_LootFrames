@@ -221,6 +221,15 @@ local function BuildPage(pageName, parent, yOffset)
             function() return not On() end, "Enable Loot Roll Window")
     ); y = y - h
 
+    _, h = W:DualRow(parent, y,
+        Slider("outerPad", "Outer Padding", 0, 16, 1,
+            "Space between the outer box and each roll box.",
+            function() return not On() or ns.Cfg().outerBox == false end, "Turn Outer Box on"),
+        Slider("innerPad", "Inner Padding", 0, 16, 1,
+            "Space between each roll box edge and its content.",
+            function() return not On() or ns.Cfg().innerBox == false end, "Turn Inner Box on")
+    ); y = y - h
+
     local texs, texNames, texOrder = EUI.BuildBarTextureTables()
 
     local bgRow
@@ -542,8 +551,8 @@ local function BuildPage(pageName, parent, yOffset)
     ); y = y - h
 
     _, h = W:DualRow(parent, y,
-        Slider("pad", "Inner Padding", 4, 32, 1,
-            "Space between the window edge and its content, and between the item rows and the window sides.",
+        Slider("pad", "Content Padding", 4, 32, 1,
+            "Base space between a row edge and its content. Inner Box padding adds to it.",
             function() return not On() end, "Enable Loot Roll Window"),
         Slider("maxRows", "Max Rolls", 1, 12, 1,
             "How many rolls the window shows at once. Further rolls are counted below them.",

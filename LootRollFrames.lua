@@ -64,7 +64,7 @@ local DEFAULTS = {
     -- Appearance, in the same shape as EllesmereUI's other frames.
     bgTexture    = "none",
     bgR = 0.062, bgG = 0.050, bgB = 0.039, bgA = 0.97,
-    outerBox = true, innerBox = false,
+    outerBox = true, innerBox = false, outerPad = 0, innerPad = 0,
     borderTexture = "solid",
     borderSize = 1, borderSizePx = false,
     borderR = 0, borderG = 0, borderB = 0, borderA = 1,
@@ -94,6 +94,8 @@ local function EnsureDB()
     db.iconSize = math.max(10, math.min(64, math.floor((tonumber(db.iconSize) or 12) + 0.5)))
     db.lineGap  = math.max(2, math.min(30, math.floor((tonumber(db.lineGap) or 6) + 0.5)))
     db.pad      = math.max(4, math.min(32, math.floor((tonumber(db.pad) or 8) + 0.5)))
+    db.outerPad = math.max(0, math.min(16, math.floor((tonumber(db.outerPad) or 0) + 0.5)))
+    db.innerPad = math.max(0, math.min(16, math.floor((tonumber(db.innerPad) or 0) + 0.5)))
     if db.playerStyle ~= "text" and db.playerStyle ~= "chips" then db.playerStyle = "chips" end
     if db.align ~= "right" then db.align = "left" end
     if db.buttonStyle ~= "labels" then db.buttonStyle = "icons" end
