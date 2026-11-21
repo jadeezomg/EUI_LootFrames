@@ -551,22 +551,38 @@ local function BuildPage(pageName, parent, yOffset)
     ); y = y - h
 
     _, h = W:DualRow(parent, y,
-        Slider("pad", "Content Padding", 4, 32, 1,
-            "Base space between a row edge and its content. Inner Box padding adds to it.",
+        Slider("nameSize", "Item Name Size", 8, 32, 1,
+            "Font size of the item name on each roll.",
             function() return not On() end, "Enable Loot Roll Window"),
-        Slider("maxRows", "Max Rolls", 1, 12, 1,
-            "How many rolls the window shows at once. Further rolls are counted below them.",
+        Slider("rowTextSize", "Row Text Size", 8, 24, 1,
+            "Font size of the choice badges and the player names or chips.",
             function() return not On() end, "Enable Loot Roll Window")
     ); y = y - h
 
     _, h = W:DualRow(parent, y,
+        Slider("pad", "Content Padding", 4, 32, 1,
+            "Base space between a row edge and its content. Inner Box padding adds to it.",
+            function() return not On() end, "Enable Loot Roll Window"),
+        Slider("timeSize", "Time Size", 8, 24, 1,
+            "Font size of the countdown and the result state.",
+            function() return not On() end, "Enable Loot Roll Window")
+    ); y = y - h
+
+    _, h = W:DualRow(parent, y,
+        Slider("maxRows", "Max Rolls", 1, 12, 1,
+            "How many rolls the window shows at once. Further rolls are counted below them.",
+            function() return not On() end, "Enable Loot Roll Window"),
         Slider("linger", "Keep Roll Results", 0, 60, 1,
             "Seconds a distributed item stays with its result. A finished roll stays until the game awards the item, even past this time.",
-            function() return not On() end, "Enable Loot Roll Window"),
+            function() return not On() end, "Enable Loot Roll Window")
+    ); y = y - h
+
+    _, h = W:DualRow(parent, y,
         { type = "labeledButton", text = "Position", buttonText = "Reset",
           tooltip = "Puts the window back in the middle of the screen. Move it with Unlock Mode, or by its header in Show Samples.",
           disabled = function() return not On() end, disabledTooltip = "Enable Loot Roll Window",
-          onClick = function() ns.Window.ResetPosition(); ns.Refresh() end }
+          onClick = function() ns.Window.ResetPosition(); ns.Refresh() end },
+        EUI.BlankRowCfg()
     ); y = y - h
 
     return math.abs(y)

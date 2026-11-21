@@ -134,6 +134,9 @@ have not made a choice yet.
 | Window Scale | Size of the window and its text. Range 50% to 300%. | 100% |
 | Width | Window width. Range 240 to 800. | 300 |
 | Line Spacing | Space between the Need, Greed, Pass and decision lines. Range 2 to 30. | 6 |
+| Item Name Size | Font size of the item name. Range 8 to 32. | 13 |
+| Row Text Size | Font size of the choice badges and the player names or chips. Range 8 to 24. | 11 |
+| Time Size | Font size of the countdown and the result state. Range 8 to 24. | 12 |
 | Content Padding | Base space between a row edge and its content. Inner Box padding adds to it. Range 4 to 32. | 8 |
 | Max Rolls | Number of rolls shown at once. Extra rolls are counted below the window. Range 1 to 12. | 4 |
 | Keep Roll Results | Seconds that a concluded roll stays on screen. A roll that is waiting for the game award stays longer. Range 0 to 60. | 10 |

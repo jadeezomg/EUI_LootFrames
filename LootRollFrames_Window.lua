@@ -33,11 +33,15 @@ local function Metrics()
     local pad = cfg.pad or PAD
     local icon = cfg.iconSize or 12
     local itemIcon = cfg.itemIconSize or ICON
-    local lineH = max(LINE_H, icon)
+    local rowText = cfg.rowTextSize or 11
+    local lineH = max(LINE_H, icon, rowText + 2)
     local gap = cfg.lineGap or 6
     local barH = cfg.barHeight or BAR_H
+    -- The item name and the time share the top line, so it must fit the
+    -- larger of their two sizes.
+    local nameLine = max(16, (cfg.nameSize or 13) + 2, (cfg.timeSize or 12) + 2)
     local innerPad = (cfg.innerBox and (cfg.innerPad or 0)) or 0
-    local top = 6 + 16 + barH + 4 + innerPad
+    local top = 6 + nameLine + barH + 4 + innerPad
     local rowH = top + LINE_COUNT * lineH + (LINE_COUNT - 1) * gap + 6 + innerPad
     -- A large item icon hangs below the name line, so the row must be at
     -- least as tall as the icon and the inner padding.
@@ -163,12 +167,20 @@ local function AtlasTag(name, size)
     return "|A:" .. name .. ":" .. size .. ":" .. size .. "|a "
 end
 
-local measure
+local measure, measureSize
 local function Measurer()
-    if measure then return measure end
+    local size = ns.Cfg().rowTextSize or 11
+    if measure then
+        if measureSize ~= size then
+            SetFont(measure, size, 1, 1, 1)
+            measureSize = size
+        end
+        return measure
+    end
     if not win then return nil end
     measure = win:CreateFontString(nil, "OVERLAY")
-    SetFont(measure, 11, 1, 1, 1)
+    SetFont(measure, size, 1, 1, 1)
+    measureSize = size
     measure:SetAlpha(0)
     measure:SetWordWrap(false)
     return measure
@@ -716,6 +728,7 @@ local function PlaceChip(row, index, r, text, x, y, w, iconMode, h, showRoll)
         end
     else
         c.icon:Hide()
+        SetFont(c.name, cfg.rowTextSize or 11, 1, 1, 1)
         c.name:SetText(text)
         c.name:SetTextColor(1, 1, 1, 1)
         c.name:Show()
@@ -881,6 +894,7 @@ local function LayoutRow(row, m, top)
         row.name:SetJustifyH("LEFT")
     end
     row.name:SetWidth(textW)
+    SetFont(row.name, cfg.nameSize or 13, 1, 1, 1)
     row.name:SetText("|cff" .. Hex(qr, qg, qb) .. m.name .. "|r")
 
     row.time:ClearAllPoints()
@@ -892,6 +906,7 @@ local function LayoutRow(row, m, top)
         row.time:SetJustifyH("RIGHT")
     end
     row.time:SetWidth(timeW)
+    SetFont(row.time, cfg.timeSize or 12, 0.85, 0.85, 0.85)
     if m.active then
         row.time:SetText(tostring(m.secondsLeft) .. "s")
         row.time:SetTextColor(1, 1, 1, 1)
@@ -1073,6 +1088,8 @@ local function LayoutRow(row, m, top)
         local ly = linesTop + (n - 1) * (lineH + lineGap)
         local badge = row.lines[n] or CreateSlot(row, n)
         local text = row.texts[n]
+        SetFont(badge, cfg.rowTextSize or 11, 1, 1, 1)
+        SetFont(text, cfg.rowTextSize or 11, 0.9, 0.9, 0.9)
         local band = row.strips[n]
         -- The badge's own width starts the content, so icon badges leave more
         -- room for chips than the text badge of the decision line.
