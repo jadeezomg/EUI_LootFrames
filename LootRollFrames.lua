@@ -817,19 +817,22 @@ function ns.Roll(id, choice)
     end
     local at = GetTime()
     pendingConfirm = { id = id, choice = choice, at = at, confirmed = false, shown = false }
+    -- The game can send CANCEL_LOOT_ROLL before RollOnLoot returns. Claim the
+    -- choice first, or the cancel handler treats the click as an abort and
+    -- removes the row.
+    e.dialogAbortedAt = nil
+    e.myChoice, e.myChoiceAt = choice, at
+    e.choiceFadeAt = at
     local ok, err = pcall(RollOnLoot, id, choice)
     if not ok then
         pendingConfirm = nil
+        e.myChoice, e.myChoiceAt, e.choiceFadeAt = nil, nil, nil
         ns.FallBack("Couldn't roll from the window (" .. tostring(err) .. ").")
         return
     end
-    e.dialogAbortedAt = nil
     if pendingConfirm.shown or ConfirmUp() then
         e.pendingChoice = choice
         e.myChoice, e.myChoiceAt, e.choiceFadeAt = nil, nil, nil
-    else
-        e.myChoice, e.myChoiceAt = choice, at
-        e.choiceFadeAt = at
     end
     ns.Refresh()
 end
@@ -838,6 +841,35 @@ end
 --  Blizzard's own roll popups
 -------------------------------------------------------------------------------
 local hider, hiddenFrames = nil, {}
+local hiddenActive = false
+local containerMouse
+
+local function HideStockFrame(f)
+    local rec = hiddenFrames[f]
+    if not rec then
+        rec = { parent = f:GetParent(), mouse = (f.IsMouseEnabled and f:IsMouseEnabled()) or true }
+        hiddenFrames[f] = rec
+        if hooksecurefunc then
+            -- Blizzard can show a pooled roll frame again outside
+            -- START_LOOT_ROLL. Hide it again while this addon owns the rolls.
+            pcall(hooksecurefunc, f, "Show", function(frame)
+                if hiddenActive then
+                    pcall(frame.Hide, frame)
+                    pcall(frame.EnableMouse, frame, false)
+                end
+            end)
+        end
+    end
+    local c = _G.GroupLootContainer
+    if c and type(_G.GroupLootContainer_RemoveFrame) == "function" then
+        -- Remove the frame from the container layout so the container
+        -- collapses instead of leaving an empty click blocker.
+        pcall(_G.GroupLootContainer_RemoveFrame, c, f)
+    end
+    pcall(f.SetParent, f, hider)
+    pcall(f.EnableMouse, f, false)
+    pcall(f.Hide, f)
+end
 
 local function BlizzardHidden(hide)
     hide = hide and not blockedThisSession
@@ -845,21 +877,29 @@ local function BlizzardHidden(hide)
         hider = CreateFrame("Frame", nil, UIParent)
         hider:Hide()
     end
-    for i = 1, 10 do
-        local f = _G["GroupLootFrame" .. i]
-        if not f then break end
-        local rec = hiddenFrames[f]
-        if hide then
-            if not rec then
-                rec = { parent = f:GetParent(), mouse = (f.IsMouseEnabled and f:IsMouseEnabled()) or true }
-                hiddenFrames[f] = rec
-                pcall(f.SetParent, f, hider)
-                pcall(f.EnableMouse, f, false)
-            end
-        elseif rec then
+    hiddenActive = hide and true or false
+    local c = _G.GroupLootContainer
+    if hide then
+        if c and containerMouse == nil then
+            containerMouse = (c.IsMouseEnabled and c:IsMouseEnabled()) or false
+            pcall(c.EnableMouse, c, false)
+        end
+        for i = 1, 10 do
+            local f = _G["GroupLootFrame" .. i]
+            if f then HideStockFrame(f) end
+        end
+    else
+        for f, rec in pairs(hiddenFrames) do
             pcall(f.SetParent, f, rec.parent or UIParent)
             pcall(f.EnableMouse, f, rec.mouse ~= false)
-            hiddenFrames[f] = nil
+            if c and type(_G.GroupLootContainer_AddFrame) == "function" then
+                pcall(_G.GroupLootContainer_AddFrame, c, f)
+            end
+        end
+        hiddenFrames = {}
+        if c and containerMouse ~= nil then
+            pcall(c.EnableMouse, c, containerMouse)
+            containerMouse = nil
         end
     end
 end
