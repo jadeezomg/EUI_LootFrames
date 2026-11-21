@@ -292,6 +292,36 @@ local function TooltipChoices(m)
     end
 end
 
+-- Every player on the roll, including the winner and anyone still deciding.
+local function TooltipAllPlayers(m)
+    if not (m and GameTooltip) then return end
+    local seen = {}
+    GameTooltip:AddLine(" ")
+    GameTooltip:AddLine("All players", 1, 0.82, 0.30)
+    local function Add(r, label)
+        local name = RawName(r)
+        if name == "?" then return end
+        local key = name .. ":" .. tostring(Plain(r.playerClass))
+        if seen[key] then return end
+        seen[key] = true
+        local roll = tonumber(Plain(r.roll))
+        local line = ClassColorName(r, name)
+        if label then line = line .. "  |cff8a8a8a" .. label .. "|r" end
+        if roll then line = line .. "  |cffffffff" .. tostring(roll) .. "|r" end
+        GameTooltip:AddLine(line, 1, 1, 1, false)
+    end
+    if m.groups then
+        for _, choice in ipairs({ 1, 2, 0 }) do
+            local list = m.groups[choice]
+            for _, r in ipairs(list or {}) do
+                Add(r, CHOICE[choice] and CHOICE[choice].label)
+            end
+        end
+    end
+    for _, r in ipairs(m.waiting or {}) do Add(r, "Waiting") end
+    if m.winner then Add(m.winner, "Winner") end
+end
+
 -------------------------------------------------------------------------------
 --  Frame building
 -------------------------------------------------------------------------------
@@ -437,6 +467,36 @@ local function MakeRow()
     row.hit:SetScript("OnLeave", function(self)
         if GameTooltip and GameTooltip:IsOwned(self) then GameTooltip:Hide() end
     end)
+
+    row.iconHit = CreateFrame("Frame", nil, row)
+    row.iconHit:EnableMouse(true)
+    row.iconHit:SetFrameLevel(row:GetFrameLevel() + 2)
+    row.iconHit:SetScript("OnEnter", function(self)
+        local m = row.model
+        if not (m and GameTooltip) then return end
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        if m.link then GameTooltip:SetHyperlink(m.link) end
+        TooltipAllPlayers(m)
+        GameTooltip:Show()
+    end)
+    row.iconHit:SetScript("OnLeave", function(self)
+        if GameTooltip and GameTooltip:IsOwned(self) then GameTooltip:Hide() end
+    end)
+
+    row.resultHit = CreateFrame("Frame", nil, row)
+    row.resultHit:EnableMouse(true)
+    row.resultHit:SetFrameLevel(row:GetFrameLevel() + 2)
+    row.resultHit:SetScript("OnEnter", function(self)
+        local m = row.model
+        if not (m and GameTooltip) then return end
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        TooltipAllPlayers(m)
+        GameTooltip:Show()
+    end)
+    row.resultHit:SetScript("OnLeave", function(self)
+        if GameTooltip and GameTooltip:IsOwned(self) then GameTooltip:Hide() end
+    end)
+    row.resultHit:Hide()
 
     row.icon = row:CreateTexture(nil, "ARTWORK", nil, 1)
     row.icon:SetSize(ICON, ICON)
@@ -850,7 +910,8 @@ local function GetBadgeBtn(row, slot)
         local cfg = ns.Cfg()
         local bbg = row.badgeBgs[self.slot]
         if bbg and bbg:IsShown() and bbg._r then
-            PaintButtonBg(bbg, bbg._r, bbg._g, bbg._b, cfg.buttonBgA or 0.2)
+            local a = bbg._chosen and (cfg.buttonHoverA or 0.34) or (cfg.buttonBgA or 0.2)
+            PaintButtonBg(bbg, bbg._r, bbg._g, bbg._b, a)
         end
         if GameTooltip and GameTooltip:IsOwned(self) then GameTooltip:Hide() end
     end)
@@ -932,6 +993,9 @@ local function LayoutRow(row, m, top)
     row.icon:ClearAllPoints()
     row.icon:SetPoint("TOPLEFT", row, "TOPLEFT", iconX, -topPad)
     row.icon:SetSize(itemIcon, itemIcon)
+    row.iconHit:ClearAllPoints()
+    row.iconHit:SetPoint("TOPLEFT", row, "TOPLEFT", iconX, -topPad)
+    row.iconHit:SetSize(itemIcon, itemIcon)
     local qr, qg, qb = QualityColor(m.quality)
     row.icon:SetTexture(m.texture or "Interface\\Icons\\INV_Misc_QuestionMark")
     -- The item icon border is the standard EUI border, defaulting to the item's
@@ -1255,14 +1319,17 @@ local function LayoutRow(row, m, top)
         -- can always change the choice. Real rolls hide them once picked.
         local canRoll = choice ~= nil and m.active and (not m.myChoice or m.fake)
 
-        -- The highlight marks a choice the viewer has not made yet. Once a
-        -- choice is made it fades out, and the roll buttons can stay.
+        -- Open choices are lit. After a pick the chosen line keeps the
+        -- mouseover strength, and the other lines fade out.
+        local chosen = choice ~= nil and m.myChoice == choice
         local fadeLeft = 1
-        if m.myChoice then
+        if m.myChoice and not chosen then
             fadeLeft = m.choiceFade and (1 - (GetTime() - m.choiceFade) / CHOICE_FADE) or 0
         end
-        local highlight = choice ~= nil and m.active and (not m.myChoice or fadeLeft > 0)
+        local highlight = choice ~= nil
+            and (chosen or (m.active and (not m.myChoice or fadeLeft > 0)))
         local lr, lg, lb = LineColor(choice)
+        local baseA = chosen and (cfg.buttonHoverA or 0.34) or (cfg.buttonBgA or 0.2)
         local bbg = row.badgeBgs[n]
         if not bbg then
             bbg = row:CreateTexture(nil, "BACKGROUND")
@@ -1278,17 +1345,18 @@ local function LayoutRow(row, m, top)
                     bbg:SetPoint("TOPLEFT", row, "TOPLEFT", edge, -ly)
                     bbg:SetPoint("BOTTOMRIGHT", row, "TOPLEFT", W - pad, -(ly + lineH))
                 end
-                PaintButtonBg(bbg, lr or strip[1], lg or strip[2], lb or strip[3], cfg.buttonBgA or 0.2)
             else
                 bbg:SetPoint("TOPLEFT", row, "TOPLEFT", btnX, -ly)
                 bbg:SetPoint("BOTTOMRIGHT", row, "TOPLEFT", btnX + btnW, -(ly + lineH))
-                PaintButtonBg(bbg, lr or strip[1], lg or strip[2], lb or strip[3], cfg.buttonBgA or 0.2)
             end
+            PaintButtonBg(bbg, lr or strip[1], lg or strip[2], lb or strip[3], baseA)
             bbg._r, bbg._g, bbg._b = lr or strip[1], lg or strip[2], lb or strip[3]
-            bbg._fade = m.myChoice and max(0, fadeLeft) or 1
-            bbg:SetAlpha((bbg._a or cfg.buttonBgA or 0.2) * bbg._fade)
+            bbg._choice, bbg._chosen = choice, chosen
+            bbg._fade = chosen and 1 or max(0, fadeLeft)
+            bbg:SetAlpha((bbg._a or baseA) * bbg._fade)
             bbg:Show()
         else
+            bbg._chosen = nil
             bbg:Hide()
         end
 
@@ -1303,6 +1371,19 @@ local function LayoutRow(row, m, top)
         badge:SetJustifyH(rtl and "RIGHT" or "LEFT")
         badge:SetText(badgeText)
         badge:Show()
+
+        if n == 4 and (m.winner or m.allPassed or m.finished) then
+            row.resultHit:ClearAllPoints()
+            if rtl then
+                row.resultHit:SetPoint("TOPRIGHT", row, "TOPRIGHT", -badgeLead, -ly)
+            else
+                row.resultHit:SetPoint("TOPLEFT", row, "TOPLEFT", badgeLead, -ly)
+            end
+            row.resultHit:SetSize(bw, lineH)
+            row.resultHit:Show()
+        elseif n == 4 then
+            row.resultHit:Hide()
+        end
 
         -- The choice badge is the roll button: same icon, same spot.
         local btn = row.choiceBtns[n]
@@ -1549,13 +1630,23 @@ function Win.Timers()
             if alpha <= 0 then
                 m.choiceFade = nil
                 for _, bbg in pairs(row.badgeBgs) do
-                    bbg._fade = 0
-                    if bbg:IsShown() then bbg:Hide() end
+                    if bbg._chosen then
+                        bbg._fade = 1
+                        bbg:SetAlpha(bbg._a or 0.2)
+                    else
+                        bbg._fade = 0
+                        if bbg:IsShown() then bbg:Hide() end
+                    end
                 end
             else
                 for _, bbg in pairs(row.badgeBgs) do
-                    bbg._fade = alpha
-                    if bbg:IsShown() then bbg:SetAlpha((bbg._a or 0.2) * alpha) end
+                    if bbg._chosen then
+                        bbg._fade = 1
+                        bbg:SetAlpha(bbg._a or 0.2)
+                    else
+                        bbg._fade = alpha
+                        if bbg:IsShown() then bbg:SetAlpha((bbg._a or 0.2) * alpha) end
+                    end
                 end
             end
         end

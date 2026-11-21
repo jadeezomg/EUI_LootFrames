@@ -467,18 +467,29 @@ local function AdoptHistoryChoices()
     end
 end
 
-local function RollGroups(d)
+local function RollGroups(d, winner)
     local groups = { [ROLL_NEED] = {}, [ROLL_GREED] = {}, [ROLL_PASS] = {} }
     local waiting = {}
     local infos = d.rollInfos
+    local winName = winner and plain(winner.playerName)
+    local winClass = winner and plain(winner.playerClass)
     if type(infos) == "table" then
         for _, r in ipairs(infos) do
-            local st = plain(r.state)
-            local choice = ChoiceOfState(st)
-            if choice then
-                groups[choice][#groups[choice] + 1] = r
-            else
-                waiting[#waiting + 1] = r
+            -- The winner has its own line, so keep it out of the choice list
+            -- to leave room for the players still shown there.
+            local isWinner = winner ~= nil and plain(r.isWinner) == true
+            if not isWinner and winName and plain(r.playerName) == winName then
+                local cls = plain(r.playerClass)
+                isWinner = not winClass or not cls or cls == winClass
+            end
+            if not isWinner then
+                local st = plain(r.state)
+                local choice = ChoiceOfState(st)
+                if choice then
+                    groups[choice][#groups[choice] + 1] = r
+                else
+                    waiting[#waiting + 1] = r
+                end
             end
         end
     end
@@ -572,10 +583,10 @@ local function BuildModel()
             fake       = e.fake,
         }
         if e.drop then
-            local groups, waiting = RollGroups(e.drop)
+            m.winner = WinnerOf(e.drop)
+            local groups, waiting = RollGroups(e.drop, m.winner)
             m.groups = groups
             m.waiting = waiting
-            m.winner = WinnerOf(e.drop)
             m.allPassed = e.drop.allPassed == true
         end
         out[#out + 1] = m

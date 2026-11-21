@@ -103,8 +103,10 @@ or border style name comes from the EllesmereUI catalog.
 | Greed Line Color | Color of the Greed line, the Greed button background and the Greed Full Row band. | Greed yellow |
 | Pass Line Color | Color of the Pass line, the Pass button background and the Pass Full Row band. | Pass gray |
 
-The choice highlight fades out after you pick. It marks only rolls where you
-have not made a choice yet.
+The chosen line keeps the mouseover highlight and the other lines fade out
+after you pick. When the winner is known, the winner leaves the choice list and
+gets the decision line, which leaves more room for the remaining players. Hover
+the item icon or the decision line badge to list every player.
 
 ### Item Row
 
