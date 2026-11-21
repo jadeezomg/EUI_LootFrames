@@ -1055,7 +1055,7 @@ function ns.StartRoll(rollID, rollTime, ongoing)
         cancelledAt[rollID] = nil
         if cancelled == GetTime() then return end
     end
-    if GetLootRollTimeLeft then
+    if not ongoing and GetLootRollTimeLeft then
         local ok, left = pcall(GetLootRollTimeLeft, rollID)
         if ok and tonumber(plain(left)) == 0 then return end
     end
