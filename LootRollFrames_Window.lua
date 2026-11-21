@@ -1353,8 +1353,11 @@ local function LayoutRow(row, m, top)
             bbg._r, bbg._g, bbg._b = lr or strip[1], lg or strip[2], lb or strip[3]
             bbg._choice, bbg._chosen = choice, chosen
             bbg._fade = chosen and 1 or max(0, fadeLeft)
-            bbg:SetAlpha((bbg._a or baseA) * bbg._fade)
+            -- Show before applying alpha. A hidden texture can drop a region
+            -- alpha set earlier, which made a full-row band look opaque until
+            -- the first mouseover repainted it.
             bbg:Show()
+            bbg:SetAlpha((bbg._a or baseA) * bbg._fade)
         else
             bbg._chosen = nil
             bbg:Hide()
