@@ -756,6 +756,11 @@ local function ConfirmUp()
     return ok and which ~= nil
 end
 
+-- The popup can be shown slightly after RollOnLoot returns, so remember the
+-- click itself. StaticPopup_Hide then knows which row to clear even when the
+-- popup was not visible yet at click time.
+local pendingConfirm
+
 function ns.Roll(id, choice)
     local e = rolls[id]
     if not e or e.finished or (e.myChoice and not e.fake) then return end
@@ -774,17 +779,21 @@ function ns.Roll(id, choice)
         ns.Refresh()
         return
     end
+    local at = GetTime()
+    pendingConfirm = { id = id, choice = choice, at = at, confirmed = false, shown = false }
     local ok, err = pcall(RollOnLoot, id, choice)
     if not ok then
+        pendingConfirm = nil
         ns.FallBack("Couldn't roll from the window (" .. tostring(err) .. ").")
         return
     end
-    if ConfirmUp() then
+    e.dialogAbortedAt = nil
+    if pendingConfirm.shown or ConfirmUp() then
         e.pendingChoice = choice
         e.myChoice, e.myChoiceAt, e.choiceFadeAt = nil, nil, nil
     else
-        e.myChoice, e.myChoiceAt = choice, GetTime()
-        e.choiceFadeAt = e.myChoiceAt
+        e.myChoice, e.myChoiceAt = choice, at
+        e.choiceFadeAt = at
     end
     ns.Refresh()
 end
@@ -1225,7 +1234,13 @@ local function OnEvent(_, event, arg1, arg2)
                 -- A choice closes your own window but the group roll can still
                 -- run, and the API can report zero left. Keep the local
                 -- deadline so the countdown continues; the ticker ends it.
+                e.dialogAbortedAt = nil
                 if e.deadline and e.deadline <= GetTime() then FinishRoll(id) end
+            elseif e.dialogAbortedAt and GetTime() - e.dialogAbortedAt <= 2 then
+                -- The bind-on-pickup dialog was just dismissed. This cancel
+                -- belongs to that attempt, so keep the row and let the player
+                -- choose again, even when the API reports zero time left.
+                e.dialogAbortedAt = nil
             elseif left <= 0 then
                 -- The roll ended without a choice. Keep the row for the
                 -- result or the all-passed state.
@@ -1300,9 +1315,13 @@ eventFrame:RegisterEvent("ADDON_LOADED")
 -- that is when the roll was really placed.
 if hooksecurefunc and ConfirmLootRoll then
     pcall(hooksecurefunc, "ConfirmLootRoll", function(rollID, rollType)
-        local e = rolls[plain(rollID) or false]
+        local id = plain(rollID)
+        local e = rolls[id or false]
         local choice = plain(rollType)
         if e and choice then
+            if pendingConfirm and pendingConfirm.id == id then
+                pendingConfirm.confirmed = true
+            end
             e.pendingChoice = nil
             e.myChoice, e.myChoiceAt = choice, GetTime()
             e.choiceFadeAt = e.myChoiceAt
@@ -1311,19 +1330,38 @@ if hooksecurefunc and ConfirmLootRoll then
     end)
 end
 
--- Dismissing the bind-on-pickup dialog cancels the roll. Clear the pending
--- choice so the buttons come back on that row.
+-- The popup can be shown after RollOnLoot returns. Mark the click when the
+-- popup actually appears, so a later hide knows which row it belongs to.
+if hooksecurefunc and StaticPopup_Show then
+    pcall(hooksecurefunc, "StaticPopup_Show", function(which)
+        if which ~= "CONFIRM_LOOT_ROLL" then return end
+        if pendingConfirm and GetTime() - pendingConfirm.at <= 0.5 then
+            pendingConfirm.shown = true
+        end
+    end)
+end
+
+-- Dismissing the bind-on-pickup dialog cancels the roll. Clear the click that
+-- opened it and put the row back to its first state so the player can choose
+-- again. A cancel that follows keeps the row instead of removing it.
 if hooksecurefunc and StaticPopup_Hide then
     pcall(hooksecurefunc, "StaticPopup_Hide", function(which)
         if which ~= "CONFIRM_LOOT_ROLL" then return end
-        for _, e in pairs(rolls) do
-            if e.pendingChoice then
-                e.pendingChoice = nil
-                e.myChoice, e.myChoiceAt, e.choiceFadeAt = nil, nil, nil
-                ns.Refresh()
-                return
-            end
+        local pending = pendingConfirm
+        pendingConfirm = nil
+        if not (pending and not pending.confirmed) then return end
+        local e = rolls[pending.id]
+        if not e or e.resolvedAt then return end
+        if not (pending.shown or e.pendingChoice) then return end
+        e.pendingChoice = nil
+        e.myChoice, e.myChoiceAt, e.choiceFadeAt = nil, nil, nil
+        -- The cancel that follows can land before this hook and finish the
+        -- row. Reopen it while the group roll still has time on its clock.
+        if e.finished and e.deadline and e.deadline > GetTime() then
+            e.finished, e.finishedAt = nil, nil
         end
+        e.dialogAbortedAt = GetTime()
+        ns.Refresh()
     end)
 end
 
