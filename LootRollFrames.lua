@@ -135,6 +135,12 @@ local STATE = (Enum and Enum.EncounterLootDropRollState)
     or { NeedMainSpec = 0, NeedOffSpec = 1, Transmog = 2, Greed = 3, NoRoll = 4, Pass = 5 }
 
 local rolls = {}   -- rollID (or preview key) -> entry
+-- START events for several rolls can arrive in one frame, where GetTime()
+-- does not move. This keeps their row and copy order stable.
+local rollSeq = 0
+-- A cancel can arrive before START_LOOT_ROLL when another addon rolls inside
+-- its own START handler. Remember it for the rest of that frame.
+local cancelledAt = {}
 local blockedThisSession = false
 local fallbackShown = false
 
@@ -162,11 +168,18 @@ ns.TimeLeft = RollTimeLeft
 -- The item's link, name and whether you may need or greed it. A roll's item
 -- can still be locked when the roll starts, so this also runs again later.
 function ns.ReadRollItem(e)
-    if GetLootRollItemLink and not e.link then
+    if GetLootRollItemLink and not e.link and not e.itemSecret then
         local ok, link = pcall(GetLootRollItemLink, e.id)
-        if ok then e.link = plain(link) end
+        if ok then
+            if secretCheck and secretCheck(link) then
+                -- Secret loot (12.x) cannot be read or retried.
+                e.itemSecret = true
+            else
+                e.link = plain(link)
+            end
+        end
     end
-    if GetLootRollItemInfo and not e.texture then
+    if GetLootRollItemInfo and not e.texture and not e.itemSecret then
         local ok, texture, name, _, quality, _, canNeed, canGreed = pcall(GetLootRollItemInfo, e.id)
         if ok then
             e.texture = plain(texture) or nil
@@ -320,7 +333,9 @@ local function CandidateDrop(e, claimed, wantChoice)
         if not claimed[key] and not d.dead and SameItem(d.itemHyperlink, e.link) and DropFits(e, d)
             and (not wantChoice or HistoryChoice(d) == wantChoice) then
             local st = tonumber(plain(d.startTime)) or 0
-            if not best or st > bestStart then
+            -- Oldest copy first: identical drops bind in drop order, so a
+            -- second refresh cannot swap the two frames.
+            if not best or st < bestStart then
                 best, bestKey, bestStart = d, key, st
             end
         end
@@ -331,28 +346,85 @@ end
 local function MatchDrops()
     local claimed, order = {}, {}
     for _, e in pairs(rolls) do order[#order + 1] = e end
-    table.sort(order, function(a, b) return (a.startedAt or 0) < (b.startedAt or 0) end)
+    table.sort(order, function(a, b)
+        local sa, sb = a.startedAt or 0, b.startedAt or 0
+        if sa ~= sb then return sa < sb end
+        return (a.seq or 0) < (b.seq or 0)
+    end)
+
+    local function valid(key)
+        local d = key and hist.byKey[key]
+        return d and not d.dead and d or nil
+    end
+
+    -- A finished roll keeps the copy it resolved with. It never moves, so a
+    -- later identical drop cannot rewrite its winner.
     for _, e in ipairs(order) do
         if e.fake then
             e.drop = e.fakeDrop
-        else
-            e.drop = nil
+        elseif e.finished then
+            local d = valid(e.dropKey)
+            if d and not claimed[e.dropKey] then
+                e.drop = d
+                claimed[e.dropKey] = true
+            elseif e.resolvedAt and e.drop then
+                -- The history can clear while the result is still on screen.
+                -- Keep the copy that already showed the winner.
+                claimed[e.dropKey] = true
+            else
+                e.drop, e.dropKey = nil, nil
+            end
         end
     end
+
+    -- Live rolls are matched again. The old copy is kept when it is still
+    -- free, so a refresh does not shuffle identical drops.
+    local oldKey = {}
+    for _, e in ipairs(order) do
+        if not e.fake and not e.finished then
+            oldKey[e] = e.dropKey
+            e.drop, e.dropKey = nil, nil
+        end
+    end
+
+    local function bind(e, wantChoice)
+        if e.fake or e.drop or e.resolvedAt or not e.link or next(hist.byKey) == nil then return end
+        local best, bestKey = CandidateDrop(e, claimed, wantChoice)
+        if not best then return end
+        claimed[bestKey] = true
+        e.drop, e.dropKey = best, bestKey
+    end
+
     -- With two copies of one item the game can record your roll on either.
-    -- Rolls you clicked bind to the copy carrying that choice first, so the
-    -- copy you have not rolled on keeps its buttons.
+    -- A clicked roll takes the copy carrying that choice first, so only one
+    -- row shows the choice and the other copy keeps its buttons.
     for _, e in ipairs(order) do
-        if not e.fake and not e.drop and e.link and e.myChoice and next(hist.byKey) ~= nil then
-            local best, bestKey = CandidateDrop(e, claimed, e.myChoice)
-            if best then claimed[bestKey] = true; e.drop = best end
+        if not e.fake and not e.finished and e.myChoice then bind(e, e.myChoice) end
+    end
+
+    -- Then keep each live roll's old copy when nobody took it.
+    for _, e in ipairs(order) do
+        if not e.fake and not e.finished and not e.drop then
+            local d = valid(oldKey[e])
+            if d and not claimed[oldKey[e]] then
+                e.drop, e.dropKey = d, oldKey[e]
+                claimed[oldKey[e]] = true
+            end
         end
     end
+
+    -- Then oldest live roll to oldest unclaimed copy, over and over.
     for _, e in ipairs(order) do
-        if not e.fake and not e.drop and e.link and next(hist.byKey) ~= nil then
-            local best, bestKey = CandidateDrop(e, claimed, nil)
-            if best then claimed[bestKey] = true; e.drop = best end
-        end
+        if not e.fake and not e.finished then bind(e, nil) end
+    end
+
+    -- A finished roll that never got a copy may still take a leftover, so its
+    -- winner can appear, but only after every live roll had a turn.
+    for _, e in ipairs(order) do
+        if e.finished and e.myChoice then bind(e, e.myChoice) end
+    end
+    for _, e in ipairs(order) do
+        if e.finished then bind(e, nil) end
     end
 end
 
@@ -371,23 +443,15 @@ function HistoryChoice(d)
     return ChoiceOfState(SelfState(d))
 end
 
--- A reload loses the local clicks. One copy can take its record back from the
--- history; with two copies, which one is yours is ambiguous, so both keep
--- their buttons.
+-- A reload loses the local clicks. With a bound history copy the record is
+-- that copy's, so one roll can take it back even when an identical copy is
+-- also rolling; an unbound roll has nothing unambiguous to adopt.
 local function AdoptHistoryChoices()
-    local counts = {}
     for _, e in pairs(rolls) do
-        local p = e.link and Payload(e.link)
-        if p then counts[p] = (counts[p] or 0) + 1 end
-    end
-    for _, e in pairs(rolls) do
-        if not e.myChoice and not e.fake and not e.finished then
-            local p = e.link and Payload(e.link)
-            if p and counts[p] == 1 then
-                local ch = HistoryChoice(e.drop)
-                if ch then
-                    e.myChoice, e.myChoiceAt = ch, GetTime()
-                end
+        if not e.myChoice and not e.fake and not e.finished and e.drop then
+            local ch = HistoryChoice(e.drop)
+            if ch then
+                e.myChoice, e.myChoiceAt = ch, GetTime()
             end
         end
     end
@@ -492,6 +556,7 @@ local function BuildModel()
             canGreed   = e.canGreed ~= false,
             choiceFade = e.choiceFadeAt,
             startedAt  = e.startedAt or 0,
+            seq        = e.seq or 0,
             resolved   = e.resolvedAt ~= nil,
             fake       = e.fake,
         }
@@ -507,7 +572,8 @@ local function BuildModel()
     table.sort(out, function(a, b)
         local ra, rb = Rank(a), Rank(b)
         if ra ~= rb then return ra < rb end
-        return a.startedAt < b.startedAt
+        if a.startedAt ~= b.startedAt then return a.startedAt < b.startedAt end
+        return a.seq < b.seq
     end)
     return out
 end
@@ -524,12 +590,7 @@ local function ReconcileChoices()
     local now = GetTime()
     for _, e in pairs(rolls) do
         if e.myChoice and not e.finished and e.drop and (now - (e.myChoiceAt or 0)) > 8 then
-            local st = plain(e.drop.playerRollState)
-            if st == nil then
-                for _, r in ipairs(e.drop.rollInfos or {}) do
-                    if plain(r.isSelf) then st = plain(r.state); break end
-                end
-            end
+            local st = SelfState(e.drop)
             -- The game never recorded it (a bind-on-pickup dialog was cancelled
             -- or the roll was refused): offer the buttons again.
             if st == STATE.NoRoll then
@@ -598,6 +659,8 @@ end
 -- history that never answers gives up after a minute.
 local WAIT_UNRESOLVED = 60
 local lastRescan = 0
+local lastInfo = 0
+local lastChoiceRefresh = 0
 
 local function RemoveNow(e, now)
     if not e.finished then return false end
@@ -637,17 +700,41 @@ OnTick = function(dt)
     end
     local now = GetTime()
     if PreviewAdvance(now) then changed = true end
+
+    -- A roll can start before its item is cached, and only this ticker runs
+    -- while it is live. Retry the link and name here instead of waiting for
+    -- an unrelated event.
+    if now - lastInfo >= 0.5 then
+        lastInfo = now
+        for _, e in pairs(rolls) do
+            if not e.fake and (not e.link or not e.texture) then
+                local link, texture = e.link, e.texture
+                ns.ReadRollItem(e)
+                if e.link ~= link or e.texture ~= texture then changed = true end
+            end
+        end
+    end
+
     local removed = false
     local waiting = false
+    local pendingChoice = false
     for id, e in pairs(rolls) do
         if RemoveNow(e, now) then
             rolls[id] = nil
             removed = true
         elseif e.finished and not e.resolvedAt then
             waiting = true
+        elseif e.myChoice and e.drop and now - (e.myChoiceAt or 0) > 8 then
+            local st = SelfState(e.drop)
+            if st == nil or st == STATE.NoRoll then pendingChoice = true end
         end
     end
     if changed or removed then
+        ns.Refresh()
+    elseif pendingChoice and now - lastChoiceRefresh >= 1 then
+        -- A bind-on-pickup confirmation that was cancelled leaves the button
+        -- hidden until the history reports NoRoll, so poll while one is due.
+        lastChoiceRefresh = now
         ns.Refresh()
     elseif waiting and now - lastRescan >= 1 then
         lastRescan = now
@@ -660,6 +747,15 @@ end
 -------------------------------------------------------------------------------
 --  Rolling
 -------------------------------------------------------------------------------
+-- A need on a bind-on-pickup item opens Blizzard's confirmation. Until it is
+-- accepted the roll did not happen, so a cancelled dialog must not leave a
+-- choice stuck on the row.
+local function ConfirmUp()
+    if not StaticPopup_Visible then return false end
+    local ok, which = pcall(StaticPopup_Visible, "CONFIRM_LOOT_ROLL")
+    return ok and which ~= nil
+end
+
 function ns.Roll(id, choice)
     local e = rolls[id]
     if not e or e.finished or (e.myChoice and not e.fake) then return end
@@ -683,8 +779,13 @@ function ns.Roll(id, choice)
         ns.FallBack("Couldn't roll from the window (" .. tostring(err) .. ").")
         return
     end
-    e.myChoice, e.myChoiceAt = choice, GetTime()
-    e.choiceFadeAt = e.myChoiceAt
+    if ConfirmUp() then
+        e.pendingChoice = choice
+        e.myChoice, e.myChoiceAt, e.choiceFadeAt = nil, nil, nil
+    else
+        e.myChoice, e.myChoiceAt = choice, GetTime()
+        e.choiceFadeAt = e.myChoiceAt
+    end
     ns.Refresh()
 end
 
@@ -753,11 +854,13 @@ function ns.Preview()
     local now = GetTime()
     local me = UnitName and UnitName("player") or "You"
     local myClass = UnitClass and select(2, UnitClass("player")) or nil
+    local previewSeq = 0
 
     local function Fake(key, link, texture, quality, seconds, infos, extra)
+        previewSeq = previewSeq + 1
         local drop = { itemHyperlink = link, playerRollState = STATE.NoRoll, rollInfos = infos }
         local e = {
-            id = key, fake = true, startedAt = now, deadline = now + seconds,
+            id = key, fake = true, seq = previewSeq, startedAt = now, deadline = now + seconds,
             duration = seconds * 1000, link = link, texture = texture, quality = quality,
             canNeed = true, canGreed = true, fakeDrop = drop,
         }
@@ -912,29 +1015,67 @@ end
 local ACTIVE_EVENTS = {
     "PLAYER_ENTERING_WORLD", "START_LOOT_ROLL", "CANCEL_LOOT_ROLL", "CANCEL_ALL_LOOT_ROLLS",
     "LOOT_HISTORY_UPDATE_DROP", "LOOT_HISTORY_UPDATE_ENCOUNTER", "LOOT_HISTORY_CLEAR_HISTORY",
+    "LOOT_HISTORY_ROLL_CHANGED", "LOOT_HISTORY_ROLL_COMPLETE", "LOOT_ROLLS_COMPLETE",
     "ADDON_ACTION_BLOCKED", "ADDON_ACTION_FORBIDDEN",
 }
 
 local function LoadActiveRolls()
-    if not GetActiveLootRollIDs then return end
-    local ok, ids = pcall(GetActiveLootRollIDs)
-    if not ok or type(ids) ~= "table" then return end
+    local ids
+    if GetActiveLootRollIDs then
+        local ok, list = pcall(GetActiveLootRollIDs)
+        if ok and type(list) == "table" then ids = list end
+    end
+    if not ids then
+        -- Older clients have no id list. Ask every possible roll instead.
+        ids = {}
+        if GetLootRollTimeLeft then
+            for i = 1, 300 do
+                local ok, left = pcall(GetLootRollTimeLeft, i)
+                left = ok and tonumber(plain(left)) or 0
+                if left > 0 and left < 300000 then ids[#ids + 1] = i end
+            end
+        end
+    end
     for _, id in ipairs(ids) do
         id = plain(id)
-        if id ~= nil and not rolls[id] then
+        if id ~= nil then
             local duration
             if C_Loot and C_Loot.GetLootRollDuration then
                 local ok2, d = pcall(C_Loot.GetLootRollDuration, id)
                 duration = ok2 and tonumber(plain(d)) or nil
             end
-            ns.StartRoll(id, duration)
+            ns.StartRoll(id, duration, true)
         end
     end
 end
 
-function ns.StartRoll(rollID, rollTime)
+function ns.StartRoll(rollID, rollTime, ongoing)
+    local cancelled = cancelledAt[rollID]
+    if cancelled ~= nil then
+        cancelledAt[rollID] = nil
+        if cancelled == GetTime() then return end
+    end
+    if GetLootRollTimeLeft then
+        local ok, left = pcall(GetLootRollTimeLeft, rollID)
+        if ok and tonumber(plain(left)) == 0 then return end
+    end
+    local old = rolls[rollID]
+    if old and not old.fake then
+        if not old.finished and RollTimeLeft(old) > 0 then
+            local newLink
+            if GetLootRollItemLink then
+                local ok, link = pcall(GetLootRollItemLink, rollID)
+                newLink = ok and plain(link) or nil
+            end
+            -- Same roll reported twice: keep the choice and the deadline.
+            if not newLink or not old.link or SameItem(newLink, old.link) then return end
+        end
+        -- The id was recycled while the old result was still on screen.
+        rolls[rollID] = nil
+    end
+    rollSeq = rollSeq + 1
     local e = {
-        id = rollID, startedAt = GetTime(), histStart = HistoryNow(),
+        id = rollID, seq = rollSeq, startedAt = GetTime(), histStart = HistoryNow(),
         duration = tonumber(plain(rollTime)),
         canNeed = true, canGreed = true,
     }
@@ -946,7 +1087,9 @@ function ns.StartRoll(rollID, rollTime)
     e.deadline = e.startedAt + (e.duration or 60000) / 1000
     rolls[rollID] = e
     ns.Window.Dismissed = false
-    if db.sound and SOUNDKIT and SOUNDKIT.UI_BONUS_LOOT_ROLL_START and PlaySound then
+    -- A reload sees the rolls that were already running; do not replay their
+    -- start sound.
+    if db.sound and not ongoing and SOUNDKIT and SOUNDKIT.UI_BONUS_LOOT_ROLL_START and PlaySound then
         pcall(PlaySound, SOUNDKIT.UI_BONUS_LOOT_ROLL_START)
     end
     ns.Refresh()
@@ -1041,6 +1184,7 @@ function ns.Apply()
         driver.Remove(TICK)
         ClearPreview()
         wipe(rolls)
+        wipe(cancelledAt)
         hist.list, hist.byKey, hist.dead, hist.built = {}, {}, 0, 0
         ns.Window.Hide()
     end
@@ -1061,23 +1205,63 @@ local function OnEvent(_, event, arg1, arg2)
     if event == "START_LOOT_ROLL" then
         BlizzardHidden(db.hideBlizzard)
         local rollID = plain(arg1)
-        if rollID ~= nil and not rolls[rollID] then
+        if rollID ~= nil then
             ns.StartRoll(rollID, arg2)
         end
     elseif event == "CANCEL_LOOT_ROLL" then
         local id = plain(arg1)
         local e = id ~= nil and rolls[id] or nil
-        -- A choice closes your own roll window. The group roll can still be
-        -- running, so keep it until the deadline or the history award.
-        if not e or not e.myChoice or (e.deadline and e.deadline <= GetTime()) then
-            FinishRoll(id)
+        if not e then
+            -- Another addon rolled inside its START handler, so this cancel
+            -- can arrive before we made the row.
+            if id ~= nil then cancelledAt[id] = GetTime() end
+        elseif not e.fake then
+            local left = 0
+            if GetLootRollTimeLeft then
+                local ok, value = pcall(GetLootRollTimeLeft, id)
+                left = ok and tonumber(plain(value)) or 0
+            end
+            if e.myChoice or e.pendingChoice then
+                -- A choice closes your own window but the group roll can still
+                -- run, and the API can report zero left. Keep the local
+                -- deadline so the countdown continues; the ticker ends it.
+                if e.deadline and e.deadline <= GetTime() then FinishRoll(id) end
+            elseif left <= 0 then
+                -- The roll ended without a choice. Keep the row for the
+                -- result or the all-passed state.
+                FinishRoll(id)
+            else
+                -- The roll was aborted before you chose. No result will come,
+                -- so do not leave the row waiting.
+                rolls[id] = nil
+            end
         end
         ns.Refresh()
     elseif event == "CANCEL_ALL_LOOT_ROLLS" then
+        wipe(cancelledAt)
         for id, e in pairs(rolls) do
-            if not e.fake then FinishRoll(id) end
+            if not e.fake then rolls[id] = nil end
         end
         ns.Refresh()
+    elseif event == "LOOT_HISTORY_ROLL_CHANGED" then
+        hist.built = 0
+        ns.Refresh(true)
+    elseif event == "LOOT_HISTORY_ROLL_COMPLETE" then
+        -- The drop carries the winner. Finish each roll when its own drop is
+        -- distributed, not every roll in the batch.
+        ns.Refresh(true)
+    elseif event == "LOOT_ROLLS_COMPLETE" then
+        -- Finish only the rolls whose own timer says zero. A live roll that
+        -- started in the same frame must not end with the batch.
+        if GetLootRollTimeLeft then
+            for id, e in pairs(rolls) do
+                if not e.fake and not e.finished then
+                    local ok, left = pcall(GetLootRollTimeLeft, id)
+                    if ok and tonumber(plain(left)) == 0 then FinishRoll(id) end
+                end
+            end
+        end
+        ns.Refresh(true)
     elseif event == "LOOT_HISTORY_UPDATE_DROP" then
         local eid, key = plain(arg1), plain(arg2)
         local read = false
@@ -1119,8 +1303,26 @@ if hooksecurefunc and ConfirmLootRoll then
         local e = rolls[plain(rollID) or false]
         local choice = plain(rollType)
         if e and choice then
+            e.pendingChoice = nil
             e.myChoice, e.myChoiceAt = choice, GetTime()
+            e.choiceFadeAt = e.myChoiceAt
             ns.Refresh()
+        end
+    end)
+end
+
+-- Dismissing the bind-on-pickup dialog cancels the roll. Clear the pending
+-- choice so the buttons come back on that row.
+if hooksecurefunc and StaticPopup_Hide then
+    pcall(hooksecurefunc, "StaticPopup_Hide", function(which)
+        if which ~= "CONFIRM_LOOT_ROLL" then return end
+        for _, e in pairs(rolls) do
+            if e.pendingChoice then
+                e.pendingChoice = nil
+                e.myChoice, e.myChoiceAt, e.choiceFadeAt = nil, nil, nil
+                ns.Refresh()
+                return
+            end
         end
     end)
 end
