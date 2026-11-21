@@ -588,18 +588,29 @@ local function BuildPage(pageName, parent, yOffset)
     return math.abs(y)
 end
 
-EUI.RegisterPlugin(ADDON, {
-    -- EUI gives every plugin its own sidebar section. There is no shared
-    -- "Plugins" group, so the section itself is named Plugins.
-    label = "Plugins",
-    modules = {
-        {
-            key = "RollWindow",
-            title = "Loot Rolls",
-            description = "Need, Greed and Pass on group loot rolls, with who chose what and what they rolled.",
-            pages = { "Roll Window" },
-            buildPage = BuildPage,
-            onReset = function() ns.Reset() end,
-        },
+-- EUI gives every plugin its own sidebar section. This addon registers the
+-- shared "Plugins" section. Other plugins (EUI_GCDSpark) publish their module
+-- specs in EUI_PLUGIN_SECTIONS.Plugins, so they join this one registration
+-- instead of adding a second "Plugins" header.
+local modules = {
+    {
+        key = "RollWindow",
+        title = "Loot Rolls",
+        description = "Need, Greed and Pass on group loot rolls, with who chose what and what they rolled.",
+        pages = { "Roll Window" },
+        buildPage = BuildPage,
+        onReset = function() ns.Reset() end,
     },
-})
+}
+local section = _G.EUI_PLUGIN_SECTIONS and _G.EUI_PLUGIN_SECTIONS.Plugins
+if type(section) == "table" and type(section.modules) == "table" then
+    for i = 1, #section.modules do
+        modules[#modules + 1] = section.modules[i]
+    end
+end
+if EUI.RegisterPlugin(ADDON, {
+    label = "Plugins",
+    modules = modules,
+}) and type(section) == "table" then
+    section.owner = ADDON
+end
