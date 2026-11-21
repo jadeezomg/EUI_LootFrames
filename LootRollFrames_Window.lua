@@ -32,11 +32,15 @@ local function Metrics()
     local cfg = ns.Cfg()
     local pad = cfg.pad or PAD
     local icon = cfg.iconSize or 12
+    local itemIcon = cfg.itemIconSize or ICON
     local lineH = max(LINE_H, icon)
     local gap = cfg.lineGap or 6
     local barH = cfg.barHeight or BAR_H
     local top = 6 + 16 + barH + 4
     local rowH = top + LINE_COUNT * lineH + (LINE_COUNT - 1) * gap + 6
+    -- A large item icon hangs below the name line, so the row must be at
+    -- least as tall as the icon.
+    rowH = max(rowH, 6 + itemIcon + 6)
     return pad, icon, lineH, gap, barH, top, rowH
 end
 
@@ -1011,7 +1015,10 @@ local function LayoutRow(row, m, top)
         local band = row.strips[n]
         -- The badge's own width starts the content, so icon badges leave more
         -- room for chips than the text badge of the decision line.
-        local bw = min(120, max(24, TextWidth(badgeText) + 8))
+        local bw = min(160, max(24, TextWidth(badgeText) + 8))
+        -- Icon badges scale with Icon Size; reserve their pixels even when
+        -- the text measurer does not count the texture escape.
+        bw = max(bw, min(160, choiceIcon + 8))
         -- The badge sits just inside the content edge. The player area takes
         -- the remaining width, on the opposite side of the badge.
         local areaX, areaW, btnX, btnW

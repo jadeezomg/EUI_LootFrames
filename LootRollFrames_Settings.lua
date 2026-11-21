@@ -357,7 +357,7 @@ local function BuildPage(pageName, parent, yOffset)
           disabled = function() return not On() end, disabledTooltip = "Enable Loot Roll Window",
           getValue = function() return ns.Cfg().buttonStyle end,
           setValue = function(v) ns.Cfg().buttonStyle = v; ns.Refresh() end },
-        Slider("iconSize", "Icon Size", 10, 18, 1,
+        Slider("iconSize", "Icon Size", 10, 64, 1,
             "Size of the roll icons, including the class icons in a crowded row.",
             function() return not On() end, "Enable Loot Roll Window")
     ); y = y - h
@@ -398,7 +398,7 @@ local function BuildPage(pageName, parent, yOffset)
 
     local iconRow
     iconRow, h = W:DualRow(parent, y,
-        Slider("itemIconSize", "Item Icon Size", 12, 48, 1,
+        Slider("itemIconSize", "Item Icon Size", 12, 96, 1,
             "Size of the dropped item's icon.",
             function() return not On() end, "Enable Loot Roll Window"),
         StyleCfg("Item Border Style", "itemBorderTexture", "itemBorderSize", "itemBorderSizePx",
@@ -459,7 +459,7 @@ local function BuildPage(pageName, parent, yOffset)
           disabled = function() return not On() end, disabledTooltip = "Enable Loot Roll Window",
           getValue = function() return ns.Cfg().barBgTexture end,
           setValue = function(v) ns.Cfg().barBgTexture = v; ns.Refresh() end },
-        Slider("barHeight", "Bar Height", 1, 10, 1,
+        Slider("barHeight", "Bar Height", 1, 30, 1,
             "Thickness of the countdown bar and its background.",
             function() return not On() end, "Enable Loot Roll Window")
     ); y = y - h
@@ -507,7 +507,7 @@ local function BuildPage(pageName, parent, yOffset)
           disabled = function() return not On() end, disabledTooltip = "Enable Loot Roll Window",
           getValue = function() return ns.Cfg().align end,
           setValue = function(v) ns.Cfg().align = v; ns.Refresh() end },
-        { type = "slider", text = "Window Scale", min = 50, max = 200, step = 5,
+        { type = "slider", text = "Window Scale", min = 50, max = 300, step = 5,
           tooltip = "Size of the window and its text.",
           disabled = function() return not On() end, disabledTooltip = "Enable Loot Roll Window",
           getValue = function() return math.floor((ns.Cfg().scale or 1) * 100 + 0.5) end,
@@ -515,18 +515,18 @@ local function BuildPage(pageName, parent, yOffset)
     ); y = y - h
 
     _, h = W:DualRow(parent, y,
-        Slider("width", "Width", 240, 460, 10, "Width of the window.",
+        Slider("width", "Width", 240, 800, 10, "Width of the window.",
             function() return not On() end, "Enable Loot Roll Window"),
-        Slider("lineGap", "Line Spacing", 2, 12, 1,
+        Slider("lineGap", "Line Spacing", 2, 30, 1,
             "Space between the Need, Greed, Pass and decision rows. Larger values make every item row taller.",
             function() return not On() end, "Enable Loot Roll Window")
     ); y = y - h
 
     _, h = W:DualRow(parent, y,
-        Slider("pad", "Inner Padding", 4, 16, 1,
+        Slider("pad", "Inner Padding", 4, 32, 1,
             "Space between the window edge and its content, and between the item rows and the window sides.",
             function() return not On() end, "Enable Loot Roll Window"),
-        Slider("maxRows", "Max Rolls", 1, 8, 1,
+        Slider("maxRows", "Max Rolls", 1, 12, 1,
             "How many rolls the window shows at once. Further rolls are counted below them.",
             function() return not On() end, "Enable Loot Roll Window")
     ); y = y - h

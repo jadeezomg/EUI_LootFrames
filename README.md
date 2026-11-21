@@ -90,7 +90,7 @@ or border style name comes from the EllesmereUI catalog.
 | Option | What it does | Default |
 | --- | --- | --- |
 | Button Style | Draws the roll buttons as icons or as text labels. | Icons |
-| Icon Size | Size of the roll icons and the class icons in a crowded line. Range 10 to 18. | 12 |
+| Icon Size | Size of the roll icons and the class icons in a crowded line. Range 10 to 64. | 12 |
 | Button Background | Badge puts the color on the open roll button. Full Row draws a band for each open choice line, from the line next to the item icon. The band uses the line color and keeps the line spacing open. | Badge |
 | Background Opacity | Opacity of the background behind an open roll button. | 20% |
 | Hover Opacity | Opacity of that background while the mouse is over the button. | 34% |
@@ -105,13 +105,13 @@ have not made a choice yet.
 
 | Option | What it does | Default |
 | --- | --- | --- |
-| Item Icon Size | Size of the item icon. Range 12 to 48. | 22 |
+| Item Icon Size | Size of the item icon. Range 12 to 96. | 22 |
 | Item Border Style | Border style around the item icon. | Solid |
 | Item Border Color | Border color for the item icon when Use Item Quality is off. | Black |
 | Item Border Size | Border thickness. 0 hides the border. | 1 |
 | Item Border Options | Dots menu for Use Item Quality, Shift X, Shift Y, Width Offset and Height Offset. Use Item Quality is on by default. | Quality on |
 | Bar Texture | Texture behind the countdown and linger bar. | None |
-| Bar Height | Thickness of the countdown and linger bar. | 2 |
+| Bar Height | Thickness of the countdown and linger bar. Range 1 to 30. | 2 |
 
 ### Flash
 
@@ -126,11 +126,11 @@ have not made a choice yet.
 | Option | What it does | Default |
 | --- | --- | --- |
 | Window Direction | Left keeps the item icon and roll buttons on the left. Right mirrors the whole row. | Left |
-| Window Scale | Size of the window and its text. Range 50% to 200%. | 100% |
-| Width | Window width. Range 240 to 460. | 300 |
-| Line Spacing | Space between the Need, Greed, Pass and decision lines. | 6 |
-| Inner Padding | Space between the window edge and its content. Range 4 to 16. | 8 |
-| Max Rolls | Number of rolls shown at once. Extra rolls are counted below the window. Range 1 to 8. | 4 |
+| Window Scale | Size of the window and its text. Range 50% to 300%. | 100% |
+| Width | Window width. Range 240 to 800. | 300 |
+| Line Spacing | Space between the Need, Greed, Pass and decision lines. Range 2 to 30. | 6 |
+| Inner Padding | Space between the window edge and its content. Range 4 to 32. | 8 |
+| Max Rolls | Number of rolls shown at once. Extra rolls are counted below the window. Range 1 to 12. | 4 |
 | Keep Roll Results | Seconds that a concluded roll stays on screen. A roll that is waiting for the game award stays longer. Range 0 to 60. | 10 |
 | Position, Reset | Returns the window to the center of the screen. Move it with Unlock Mode, or by its header in Show Samples. | Center |
 
