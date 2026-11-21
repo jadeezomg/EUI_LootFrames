@@ -502,6 +502,30 @@ local function MakeRow()
     w2:SetToAlpha(0)
     row.winAG:SetScript("OnFinished", function() row.win:Hide() end)
 
+    -- A quick fade when a different roll takes this row's slot.
+    row.swap = row:CreateAnimationGroup()
+    local swap = Anim(row.swap, "Alpha", 1, 0.12, "OUT")
+    swap:SetFromAlpha(0)
+    swap:SetToAlpha(1)
+    row.swap:SetScript("OnFinished", function() row:SetAlpha(1) end)
+
+    -- A short wash in the chosen line colour when Need, Greed or Pass is taken.
+    row.sel = CreateFrame("Frame", nil, row)
+    row.sel:SetAllPoints(row)
+    row.sel:SetFrameLevel(row:GetFrameLevel() + 3)
+    row.selTex = row.sel:CreateTexture(nil, "OVERLAY")
+    row.selTex:SetAllPoints()
+    row.selTex:SetColorTexture(1, 1, 1, 0.14)
+    row.sel:Hide()
+    row.selAG = row.sel:CreateAnimationGroup()
+    local s1 = Anim(row.selAG, "Alpha", 1, 0.10, "OUT")
+    s1:SetFromAlpha(0)
+    s1:SetToAlpha(1)
+    local s2 = Anim(row.selAG, "Alpha", 2, 0.28, "IN_OUT")
+    s2:SetFromAlpha(1)
+    s2:SetToAlpha(0)
+    row.selAG:SetScript("OnFinished", function() row.sel:Hide() end)
+
     return row
 end
 
@@ -1020,14 +1044,18 @@ local function LayoutRow(row, m, top)
         row.exit:Stop()
         row.winAG:Stop()
         row.win:Hide()
+        row.swap:Stop()
+        row.selAG:Stop()
+        row.sel:Hide()
+        row._choiceVal = m.myChoice
         row:SetAlpha(0)
         local dir = rtl and 1 or -1
         row.show.jump:SetOffset(dir * ANIM_SLIDE, 0)
         row.show.slide:SetOffset(-dir * ANIM_SLIDE, 0)
         row.show:Play()
     elseif row._animKey ~= rollKey then
-        -- The row was reused for a different roll, for example when the list
-        -- reordered. Make sure it is visible again.
+        -- The row now holds a different roll after a reorder. Fade the new
+        -- content in instead of swapping it in place.
         row._animKey = rollKey
         row._winKey = nil
         row._exitKey = nil
@@ -1035,12 +1063,33 @@ local function LayoutRow(row, m, top)
         row.exit:Stop()
         row.winAG:Stop()
         row.win:Hide()
-        row:SetAlpha(1)
+        row.selAG:Stop()
+        row.sel:Hide()
+        -- A reorder can be the moment the choice was made, so let the
+        -- selection pulse fire for the roll that moved here.
+        row._choiceVal = nil
+        row.swap:Stop()
+        row:SetAlpha(0)
+        row.swap:Play()
+    end
+    if m.myChoice ~= row._choiceVal then
+        row._choiceVal = m.myChoice
+        if m.myChoice ~= nil and not m.exiting then
+            local sr, sg, sb = LineColor(m.myChoice)
+            if sr then
+                row.selTex:SetColorTexture(sr, sg, sb, 0.14)
+                row.sel:SetAlpha(0)
+                row.selAG:Stop()
+                row.sel:Show()
+                row.selAG:Play()
+            end
+        end
     end
     if m.winner and row._winKey ~= rollKey then
         row._winKey = rollKey
         if not m.exiting then
             row.winAG:Stop()
+            row.win:SetAlpha(0)
             row.win:Show()
             row.winAG:Play()
         end
