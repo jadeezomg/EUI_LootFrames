@@ -42,6 +42,7 @@ local DEFAULTS = {
     align        = "left",
     buttonStyle  = "icons",
     buttonBgSpan = "badge",
+    buttonBgTexture = "none",
     buttonBgA    = 0.2,
     buttonHoverA = 0.34,
     needLineR = 0.30, needLineG = 1.00, needLineB = 0.30,
@@ -63,6 +64,7 @@ local DEFAULTS = {
     -- Appearance, in the same shape as EllesmereUI's other frames.
     bgTexture    = "none",
     bgR = 0.062, bgG = 0.050, bgB = 0.039, bgA = 0.97,
+    outerBox = true, innerBox = false,
     borderTexture = "solid",
     borderSize = 1, borderSizePx = false,
     borderR = 0, borderG = 0, borderB = 0, borderA = 1,

@@ -77,6 +77,8 @@ or border style name comes from the EllesmereUI catalog.
 
 | Option | What it does | Default |
 | --- | --- | --- |
+| Outer Box | Draws the window background and border behind all rolls. Turn it off so each roll can stand alone. | On |
+| Inner Box | Draws the background and border from this section around each roll. Turn Outer Box off for separate boxes. | Off |
 | Background Texture | Texture behind the roll list. | None |
 | Background Opacity | Opacity of the window background. | 97% |
 | Background Color | Color of the window background. | Dark brown |
@@ -92,6 +94,7 @@ or border style name comes from the EllesmereUI catalog.
 | Button Style | Draws the roll buttons as icons or as text labels. | Icons |
 | Icon Size | Size of the roll icons and the class icons in a crowded line. Range 10 to 64. | 12 |
 | Button Background | Badge puts the color on the open roll button. Full Row draws a band for each open choice line, from the line next to the item icon. The band uses the line color and keeps the line spacing open. | Badge |
+| Button Texture | Texture behind an open roll button, tinted with the line color. None keeps a flat color. | None |
 | Background Opacity | Opacity of the background behind an open roll button. | 20% |
 | Hover Opacity | Opacity of that background while the mouse is over the button. | 34% |
 | Need Line Color | Color of the Need line, the Need button background and the Need Full Row band. | Need green |

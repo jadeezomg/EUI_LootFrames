@@ -300,35 +300,57 @@ local function Accent()
     return r, g, b
 end
 
-local function ApplyBackground(cfg)
+local function PaintBackground(bg, cfg)
     local key = cfg.bgTexture
     local path
     if key and key ~= "none" and EUI.ResolveTexturePath then
         path = EUI.ResolveTexturePath(BackgroundTextures(), key, nil)
     end
     if path then
-        win.bg:SetTexture(path)
-        win.bg:SetVertexColor(cfg.bgR, cfg.bgG, cfg.bgB, cfg.bgA)
+        bg:SetTexture(path)
+        bg:SetVertexColor(cfg.bgR, cfg.bgG, cfg.bgB, cfg.bgA)
     else
-        win.bg:SetColorTexture(cfg.bgR, cfg.bgG, cfg.bgB, cfg.bgA)
+        bg:SetColorTexture(cfg.bgR, cfg.bgG, cfg.bgB, cfg.bgA)
     end
+end
+
+local function PaintButtonBg(bg, r, g, b, a)
+    local key = ns.Cfg().buttonBgTexture
+    local path
+    if key and key ~= "none" and EUI.ResolveTexturePath then
+        path = EUI.ResolveTexturePath(BackgroundTextures(), key, nil)
+    end
+    if path then
+        bg:SetTexture(path)
+        bg:SetVertexColor(r, g, b, a)
+    else
+        bg:SetColorTexture(r, g, b, a)
+    end
+end
+
+local function ApplyBackground(cfg)
+    PaintBackground(win.bg, cfg)
+    if cfg.outerBox == false then win.bg:Hide() else win.bg:Show() end
 end
 
 -- The border is the suite's own: solid PP borders or a textured style with the
 -- same offsets, shifts and exact sizes as any other EUI frame.
-function Win.ApplyBorder(cfg)
-    if not win or not win.border then return end
+local function ApplyBorderFrame(frame, cfg, behind, level)
     local size = tonumber(cfg.borderSize) or 0
     local tex = cfg.borderTexture or "solid"
     local px = (size > 0 and EUI.BorderPx and EUI.BorderPx(cfg.borderSizePx, size, tex)) or nil
-    -- A style drawn behind its host (Shadow) sits under the window content.
-    local behind = cfg.borderBehind == true
-    win.border:SetFrameLevel(behind and max(0, win:GetFrameLevel() - 1) or win:GetFrameLevel() + 2)
+    frame:SetFrameLevel(level or (behind and max(0, win:GetFrameLevel() - 1) or win:GetFrameLevel() + 2))
     if EUI.ApplyBorderStyle then
-        EUI.ApplyBorderStyle(win.border, size, cfg.borderR, cfg.borderG, cfg.borderB, cfg.borderA or 1, tex,
+        EUI.ApplyBorderStyle(frame, size, cfg.borderR, cfg.borderG, cfg.borderB, cfg.borderA or 1, tex,
             cfg.borderTextureOffset, cfg.borderTextureOffsetY,
             cfg.borderTextureShiftX, cfg.borderTextureShiftY, nil, nil, nil, px)
     end
+end
+
+function Win.ApplyBorder(cfg)
+    if not win or not win.border then return end
+    ApplyBorderFrame(win.border, cfg, cfg.borderBehind == true)
+    if cfg.outerBox == false then win.border:Hide() else win.border:Show() end
 end
 
 local function ApplyChrome(cfg)
@@ -360,6 +382,11 @@ end
 local function MakeRow()
     local row = CreateFrame("Frame", nil, win)
     row:SetFrameLevel(win:GetFrameLevel() + 1)
+
+    row.innerBg = row:CreateTexture(nil, "BACKGROUND", -2)
+    row.innerBg:Hide()
+    row.innerBorder = CreateFrame("Frame", nil, row)
+    row.innerBorder:Hide()
 
     row.bg = row:CreateTexture(nil, "BACKGROUND")
     row.bg:SetAllPoints()
@@ -723,7 +750,7 @@ local function GetBadgeBtn(row, slot)
         local cfg = ns.Cfg()
         local bbg = row.badgeBgs[self.slot]
         if bbg and bbg:IsShown() and bbg._r then
-            bbg:SetColorTexture(bbg._r, bbg._g, bbg._b,
+            PaintButtonBg(bbg, bbg._r, bbg._g, bbg._b,
                 self.enabled and (cfg.buttonHoverA or 0.34) or (cfg.buttonBgA or 0.2))
         end
         ChoiceTip(self)
@@ -734,7 +761,7 @@ local function GetBadgeBtn(row, slot)
         local cfg = ns.Cfg()
         local bbg = row.badgeBgs[self.slot]
         if bbg and bbg:IsShown() and bbg._r then
-            bbg:SetColorTexture(bbg._r, bbg._g, bbg._b, cfg.buttonBgA or 0.2)
+            PaintButtonBg(bbg, bbg._r, bbg._g, bbg._b, cfg.buttonBgA or 0.2)
         end
         if GameTooltip and GameTooltip:IsOwned(self) then GameTooltip:Hide() end
     end)
@@ -784,7 +811,28 @@ local function LayoutRow(row, m, top)
     row:SetPoint("TOPLEFT", win, "TOPLEFT", 0, -top)
     row:SetPoint("TOPRIGHT", win, "TOPRIGHT", 0, -top)
 
-    row.bg:SetColorTexture(1, 1, 1, 0.035)
+    -- Each roll can carry its own box, drawn with the same background and
+    -- border settings as the window.
+    local innerBox = cfg.innerBox == true
+    if innerBox then
+        row.innerBg:ClearAllPoints()
+        row.innerBg:SetPoint("TOPLEFT", row, "TOPLEFT", 2, -2)
+        row.innerBg:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", -2, 2)
+        PaintBackground(row.innerBg, cfg)
+        row.innerBg:Show()
+        row.innerBorder:ClearAllPoints()
+        row.innerBorder:SetPoint("TOPLEFT", row, "TOPLEFT", 2, -2)
+        row.innerBorder:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", -2, 2)
+        ApplyBorderFrame(row.innerBorder, cfg, false, row:GetFrameLevel() + 3)
+        row.innerBorder:Show()
+    else
+        row.innerBg:Hide()
+        row.innerBorder:Hide()
+    end
+    -- The faint row band belongs to the outer box look. Separate boxes and a
+    -- hidden outer box keep the row clear until the flash needs it.
+    local flat = innerBox or cfg.outerBox == false
+    row.bg:SetColorTexture(1, 1, 1, flat and 0 or 0.035)
 
     row.icon:ClearAllPoints()
     row.icon:SetPoint("TOPLEFT", row, "TOPLEFT", iconX, -6)
@@ -1059,11 +1107,11 @@ local function LayoutRow(row, m, top)
                     bbg:SetPoint("TOPLEFT", row, "TOPLEFT", edge, -ly)
                     bbg:SetPoint("BOTTOMRIGHT", row, "TOPLEFT", W - pad, -(ly + lineH))
                 end
-                bbg:SetColorTexture(lr or strip[1], lg or strip[2], lb or strip[3], cfg.buttonBgA or 0.2)
+                PaintButtonBg(bbg, lr or strip[1], lg or strip[2], lb or strip[3], cfg.buttonBgA or 0.2)
             else
                 bbg:SetPoint("TOPLEFT", row, "TOPLEFT", btnX, -ly)
                 bbg:SetPoint("BOTTOMRIGHT", row, "TOPLEFT", btnX + btnW, -(ly + lineH))
-                bbg:SetColorTexture(lr or strip[1], lg or strip[2], lb or strip[3], cfg.buttonBgA or 0.2)
+                PaintButtonBg(bbg, lr or strip[1], lg or strip[2], lb or strip[3], cfg.buttonBgA or 0.2)
             end
             bbg._r, bbg._g, bbg._b = lr or strip[1], lg or strip[2], lb or strip[3]
             bbg:SetAlpha(m.myChoice and max(0, fadeLeft) or 1)
@@ -1247,6 +1295,7 @@ local function LayoutRow(row, m, top)
     row.divider:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", pad, 0)
     row.divider:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", -pad, 0)
     row.divider:SetHeight(1)
+    if innerBox then row.divider:Hide() else row.divider:Show() end
 
     return rowH
 end
@@ -1360,7 +1409,7 @@ function Win.Timers()
                 local ar, ag, ab = Accent()
                 rec.row.time:SetTextColor(1, 1, 1, 1)
                 rec.row.bar:SetColorTexture(ar, ag, ab, 1)
-                rec.row.bg:SetColorTexture(1, 1, 1, 0.035)
+                rec.row.bg:SetColorTexture(1, 1, 1, (cfg.innerBox or cfg.outerBox == false) and 0 or 0.035)
             end
         end
     end

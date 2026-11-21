@@ -212,17 +212,26 @@ local function BuildPage(pageName, parent, yOffset)
     ---------------------------------------------------------------------------
     _, h = W:SectionHeader(parent, "APPEARANCE", y); y = y - h
 
+    _, h = W:DualRow(parent, y,
+        Toggle("outerBox", "Outer Box",
+            "Draws the window background and border behind all rolls. Turn it off so each roll can stand alone.",
+            function() return not On() end, "Enable Loot Roll Window"),
+        Toggle("innerBox", "Inner Box",
+            "Draws the background and border from this section around each roll. Turn Outer Box off for separate boxes.",
+            function() return not On() end, "Enable Loot Roll Window")
+    ); y = y - h
+
     local texs, texNames, texOrder = EUI.BuildBarTextureTables()
 
     local bgRow
     bgRow, h = W:DualRow(parent, y,
         { type = "dropdown", text = "Background Texture", values = texNames, order = texOrder,
-          tooltip = "Texture behind the roll list.",
+          tooltip = "Texture behind the roll list and inside each Inner Box.",
           disabled = function() return not On() end, disabledTooltip = "Enable Loot Roll Window",
           getValue = function() return ns.Cfg().bgTexture end,
           setValue = function(v) ns.Cfg().bgTexture = v; ns.Refresh() end },
         { type = "slider", text = "Background Opacity", min = 0, max = 1, step = 0.01,
-          tooltip = "Opacity of the window background.",
+          tooltip = "Opacity of the window and inner box backgrounds.",
           disabled = function() return not On() end, disabledTooltip = "Enable Loot Roll Window",
           getValue = function() return ns.Cfg().bgA end,
           setValue = function(v) ns.Cfg().bgA = v; ns.Refresh() end }
@@ -248,7 +257,7 @@ local function BuildPage(pageName, parent, yOffset)
     local borderRow
     borderRow, h = W:DualRow(parent, y,
         { type = "dropdown", text = "Border Style", values = borderValues, order = borderOrder,
-          tooltip = "Border drawn around the window.",
+          tooltip = "Border around the window and each Inner Box.",
           disabled = function() return not On() end, disabledTooltip = "Enable Loot Roll Window",
           getValue = function() return ns.Cfg().borderTexture end,
           setValue = function(v)
@@ -362,6 +371,7 @@ local function BuildPage(pageName, parent, yOffset)
             function() return not On() end, "Enable Loot Roll Window")
     ); y = y - h
 
+    local _, btnTexNames, btnTexOrder = EUI.BuildBarTextureTables()
     _, h = W:DualRow(parent, y,
         { type = "dropdown", text = "Button Background", values = { badge = "Badge", row = "Full Row" },
           order = { "badge", "row" },
@@ -369,24 +379,33 @@ local function BuildPage(pageName, parent, yOffset)
           disabled = function() return not On() end, disabledTooltip = "Enable Loot Roll Window",
           getValue = function() return ns.Cfg().buttonBgSpan end,
           setValue = function(v) ns.Cfg().buttonBgSpan = v; ns.Refresh() end },
+        { type = "dropdown", text = "Button Texture", values = btnTexNames, order = btnTexOrder,
+          tooltip = "Texture behind an open roll button. The line colour tints it. None keeps a flat colour.",
+          disabled = function() return not On() end, disabledTooltip = "Enable Loot Roll Window",
+          getValue = function() return ns.Cfg().buttonBgTexture end,
+          setValue = function(v) ns.Cfg().buttonBgTexture = v; ns.Refresh() end }
+    ); y = y - h
+
+    _, h = W:DualRow(parent, y,
         Slider("buttonBgA", "Background Opacity", 0, 1, 0.01,
             "Opacity of the background behind an open roll button.",
+            function() return not On() end, "Enable Loot Roll Window"),
+        Slider("buttonHoverA", "Hover Opacity", 0, 1, 0.01,
+            "Opacity of the background while the mouse is over a roll button.",
             function() return not On() end, "Enable Loot Roll Window")
     ); y = y - h
 
     _, h = W:DualRow(parent, y,
-        Slider("buttonHoverA", "Hover Opacity", 0, 1, 0.01,
-            "Opacity of the background while the mouse is over a roll button.",
-            function() return not On() end, "Enable Loot Roll Window"),
         LineCfg("needLine", "Need Line Color",
-            "Colour of the Need line and its roll button background. Defaults to the Need badge colour.")
+            "Colour of the Need line and its roll button background. Defaults to the Need badge colour."),
+        LineCfg("greedLine", "Greed Line Color",
+            "Colour of the Greed line and its roll button background. Defaults to the Greed badge colour.")
     ); y = y - h
 
     _, h = W:DualRow(parent, y,
-        LineCfg("greedLine", "Greed Line Color",
-            "Colour of the Greed line and its roll button background. Defaults to the Greed badge colour."),
         LineCfg("passLine", "Pass Line Color",
-            "Colour of the Pass line and its roll button background. Defaults to the Pass badge colour.")
+            "Colour of the Pass line and its roll button background. Defaults to the Pass badge colour."),
+        EUI.BlankRowCfg()
     ); y = y - h
 
     _, h = W:Spacer(parent, y, 20); y = y - h
