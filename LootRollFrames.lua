@@ -1352,7 +1352,10 @@ if hooksecurefunc and StaticPopup_Hide then
         if not (pending and not pending.confirmed) then return end
         local e = rolls[pending.id]
         if not e or e.resolvedAt then return end
-        if not (pending.shown or e.pendingChoice) then return end
+        -- A popup from another source can hide much later. Within the roll
+        -- window, treat the last click as the one the dialog belongs to even
+        -- if neither check above saw it.
+        if not (pending.shown or e.pendingChoice or GetTime() - pending.at <= 10) then return end
         e.pendingChoice = nil
         e.myChoice, e.myChoiceAt, e.choiceFadeAt = nil, nil, nil
         -- The cancel that follows can land before this hook and finish the
