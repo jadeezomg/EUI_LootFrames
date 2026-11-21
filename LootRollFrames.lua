@@ -568,6 +568,7 @@ local function BuildModel()
             startedAt  = e.startedAt or 0,
             seq        = e.seq or 0,
             resolved   = e.resolvedAt ~= nil,
+            exiting    = e.removeAt ~= nil,
             fake       = e.fake,
         }
         if e.drop then
@@ -668,17 +669,28 @@ end
 -- answer (refreshed once a second), then keeps it for the linger time. A
 -- history that never answers gives up after a minute.
 local WAIT_UNRESOLVED = 60
+local EXIT_FADE = 0.16
 local lastRescan = 0
 local lastInfo = 0
 local lastChoiceRefresh = 0
 
+-- The row gets a short fade before it leaves, so the list does not snap shut.
+-- Returns remove, and true only on the tick that starts the fade.
 local function RemoveNow(e, now)
     if not e.finished then return false end
+    if e.removeAt then return now >= e.removeAt end
     local since = e.finishedAt or now
+    local due
     if e.resolvedAt then
-        return now - math.max(since, e.resolvedAt) > (db.linger or 10)
+        due = now - math.max(since, e.resolvedAt) > (db.linger or 10)
+    else
+        due = now - since > WAIT_UNRESOLVED
     end
-    return now - since > WAIT_UNRESOLVED
+    if due then
+        e.removeAt = now + EXIT_FADE
+        return false, true
+    end
+    return false
 end
 
 local function PreviewAdvance(now)
@@ -729,9 +741,12 @@ OnTick = function(dt)
     local waiting = false
     local pendingChoice = false
     for id, e in pairs(rolls) do
-        if RemoveNow(e, now) then
+        local remove, exiting = RemoveNow(e, now)
+        if remove then
             rolls[id] = nil
             removed = true
+        elseif exiting then
+            changed = true
         elseif e.finished and not e.resolvedAt then
             waiting = true
         elseif e.myChoice and e.drop and now - (e.myChoiceAt or 0) > 8 then

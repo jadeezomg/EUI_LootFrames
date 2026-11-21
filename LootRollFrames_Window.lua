@@ -52,6 +52,7 @@ end
 local win, moreText
 local anchor   -- invisible frame the EllesmereUI mover moves (the window follows)
 local rows, rowCount = {}, 0
+local seenRolls = {}
 local activeRows = {}   -- rows whose countdown is still running
 local builtScale
 
@@ -398,6 +399,17 @@ local function ApplyAppearance(cfg)
     Win.ApplyBorder(cfg)
 end
 
+-- One animation of group g: step order, seconds, easing.
+local function Anim(g, kind, order, secs, smoothing)
+    local a = g:CreateAnimation(kind)
+    a:SetOrder(order)
+    a:SetDuration(secs)
+    if smoothing then a:SetSmoothing(smoothing) end
+    return a
+end
+
+local ANIM_SLIDE, ANIM_IN, ANIM_OUT = 14, 0.18, 0.16
+
 local function MakeRow()
     local row = CreateFrame("Frame", nil, win)
     row:SetFrameLevel(win:GetFrameLevel() + 1)
@@ -457,6 +469,38 @@ local function MakeRow()
 
     row.divider = row:CreateTexture(nil, "BACKGROUND")
     row.divider:SetColorTexture(1, 1, 1, 0.05)
+
+    -- Slide and fade in, then fade out when the core is about to drop the row.
+    row.show = row:CreateAnimationGroup()
+    row.show.jump = Anim(row.show, "Translation", 1, 0)
+    row.show.slide = Anim(row.show, "Translation", 2, ANIM_IN, "OUT")
+    local appear = Anim(row.show, "Alpha", 2, ANIM_IN, "OUT")
+    appear:SetFromAlpha(0)
+    appear:SetToAlpha(1)
+    row.show:SetScript("OnFinished", function() row:SetAlpha(1) end)
+
+    row.exit = row:CreateAnimationGroup()
+    local leave = Anim(row.exit, "Alpha", 1, ANIM_OUT, "IN_OUT")
+    leave:SetFromAlpha(1)
+    leave:SetToAlpha(0)
+    row.exit:SetScript("OnFinished", function() row:SetAlpha(0) end)
+
+    -- A single gold wash when the winner arrives.
+    row.win = CreateFrame("Frame", nil, row)
+    row.win:SetAllPoints(row)
+    row.win:SetFrameLevel(row:GetFrameLevel() + 4)
+    local wash = row.win:CreateTexture(nil, "OVERLAY")
+    wash:SetAllPoints()
+    wash:SetColorTexture(1, 0.82, 0.30, 0.16)
+    row.win:Hide()
+    row.winAG = row.win:CreateAnimationGroup()
+    local w1 = Anim(row.winAG, "Alpha", 1, 0.16, "OUT")
+    w1:SetFromAlpha(0)
+    w1:SetToAlpha(1)
+    local w2 = Anim(row.winAG, "Alpha", 2, 0.40, "IN_OUT")
+    w2:SetFromAlpha(1)
+    w2:SetToAlpha(0)
+    row.winAG:SetScript("OnFinished", function() row.win:Hide() end)
 
     return row
 end
@@ -633,6 +677,7 @@ end
 
 function Win.Hide()
     if win then win:Hide() end
+    seenRolls = {}
 end
 
 -------------------------------------------------------------------------------
@@ -965,6 +1010,53 @@ local function LayoutRow(row, m, top)
     end
 
     row.model = m
+    local rollKey = tostring(m.id) .. ":" .. tostring(m.seq or 0)
+    if not seenRolls[rollKey] then
+        seenRolls[rollKey] = true
+        row._animKey = rollKey
+        row._winKey = nil
+        row._exitKey = nil
+        row.show:Stop()
+        row.exit:Stop()
+        row.winAG:Stop()
+        row.win:Hide()
+        row:SetAlpha(0)
+        local dir = rtl and 1 or -1
+        row.show.jump:SetOffset(dir * ANIM_SLIDE, 0)
+        row.show.slide:SetOffset(-dir * ANIM_SLIDE, 0)
+        row.show:Play()
+    elseif row._animKey ~= rollKey then
+        -- The row was reused for a different roll, for example when the list
+        -- reordered. Make sure it is visible again.
+        row._animKey = rollKey
+        row._winKey = nil
+        row._exitKey = nil
+        row.show:Stop()
+        row.exit:Stop()
+        row.winAG:Stop()
+        row.win:Hide()
+        row:SetAlpha(1)
+    end
+    if m.winner and row._winKey ~= rollKey then
+        row._winKey = rollKey
+        if not m.exiting then
+            row.winAG:Stop()
+            row.win:Show()
+            row.winAG:Play()
+        end
+    end
+    if m.exiting then
+        if row._exitKey ~= rollKey then
+            row._exitKey = rollKey
+            row.show:Stop()
+            row:SetAlpha(1)
+            row.exit:Stop()
+            row.exit:Play()
+        end
+    else
+        row._exitKey = nil
+    end
+
     local chipStyle = (cfg.playerStyle or "chips") ~= "text"
     local rightAlign = cfg.align == "right"
 
