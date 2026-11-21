@@ -1,4 +1,4 @@
-# LootRollFrames
+# EUI_LootFrames
 
 LootRollFrames is a group loot roll window for
 [EllesmereUI](https://github.com/EllesmereGaming/EllesmereUI). It replaces the
@@ -13,8 +13,8 @@ Plugins > Loot Rolls.
 - World of Warcraft, on a client that the TOC lists.
 - EllesmereUI, because this addon is a plugin and depends on it.
 - The addon folder must be named `LootRollFrames`. The game matches the folder
-  name to `LootRollFrames.toc`. The Git repository is named
-  `LootFrames-Ellesmere`, so do not use the repository name as the folder name.
+  name to `LootRollFrames.toc`. The Git repository is named `EUI_LootFrames`;
+  the folder keeps its TOC and saved-variable name.
 
 ## Install
 

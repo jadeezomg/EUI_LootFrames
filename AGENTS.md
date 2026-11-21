@@ -1,4 +1,4 @@
-# Agent rules for LootRollFrames
+# Agent rules for EUI_LootFrames
 
 This repository is the source for LootRollFrames, an EllesmereUI plugin. The
 main EllesmereUI repository owns the shared conventions. Read these files
@@ -36,8 +36,15 @@ the module, labels are plain text, and plugin code never edits EUI sections.
 | `LootRollFrames.toc` | Load order, Interface ids, version, SavedVariables. |
 
 WoW loads a TOC only from a folder with the same name as the TOC. Install the
-files in `Interface/AddOns/LootRollFrames/`. The Git repository name is
-`LootFrames-Ellesmere` and does not change the folder name.
+files in `Interface/AddOns/LootRollFrames/`. The Git repository is
+`EUI_LootFrames`.
+
+## Naming
+
+Plugin repositories use the `EUI_` prefix. The addon folder and TOC keep the
+name WoW loads and saves under, so `LootRollFrames` stays the installed folder
+even though the repository is `EUI_LootFrames`. Do not rename the addon folder
+without migrating the saved-variables file first.
 
 ## Local install
 
